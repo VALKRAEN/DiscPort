@@ -6,7 +6,7 @@ export type Message = {
   content: string
   created_at: string
 }
-export type Channel = { id: string; name: string; created_at?: string }
+export type Channel = { id: string; name: string; kind: 'text' | 'voice'; created_at?: string }
 export type Server = { id: string; name: string; color: string; invite_code: string; channels: Channel[] }
 export type Profile = { id: string; username: string; display_name: string; bio: string }
 export type Member = { id: string; username: string; display_name: string; bio: string; role: Role }

@@ -281,7 +281,7 @@ export default function ServerSettings({ server, myRole, members, myId, onClose,
             <div className="space-y-1">
               {server.channels.map(c => (
                 <div key={c.id} className="flex items-center gap-2 rounded px-2 py-2 hover:bg-white/5">
-                  <span className="flex-1 truncate"># {c.name}</span>
+                  <span className="flex-1 truncate">{c.kind === 'voice' ? '🔊' : '#'} {c.name}</span>
                   <button
                     disabled={busy}
                     onClick={() => {

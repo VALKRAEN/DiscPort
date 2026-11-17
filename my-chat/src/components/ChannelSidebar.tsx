@@ -28,6 +28,8 @@ export default function ChannelSidebar({
 }: Props) {
   const [copied, setCopied] = useState(false)
   const canManage = rank[myRole] >= 3
+  const textChannels = server.channels.filter(c => c.kind === 'text')
+  const voiceChannels = server.channels.filter(c => c.kind === 'voice')
 
   function copyCode() {
     navigator.clipboard.writeText(server.invite_code)
@@ -44,36 +46,51 @@ export default function ChannelSidebar({
             {copied ? 'Copied!' : `Invite code: ${server.invite_code}`}
           </button>
         </div>
-        <button
-          onClick={onOpenSettings}
-          title="Server settings"
-          className="text-xl text-gray-400 hover:text-white"
-        >
+        <button onClick={onOpenSettings} title="Server settings" className="text-xl text-gray-400 hover:text-white">
           ⚙
         </button>
       </div>
 
-      <div className="flex items-center justify-between px-4 pt-4 pb-1 text-xs font-semibold uppercase text-gray-400">
-        <span>Text channels</span>
-        {canManage && (
-          <button onClick={onAddChannel} title="Create channel" className="text-lg leading-none hover:text-white">
-            +
-          </button>
-        )}
-      </div>
+      <div className="flex-1 overflow-y-auto">
+        <div className="flex items-center justify-between px-4 pt-4 pb-1 text-xs font-semibold uppercase text-gray-400">
+          <span>Text channels</span>
+          {canManage && (
+            <button onClick={onAddChannel} title="Create channel" className="text-lg leading-none hover:text-white">
+              +
+            </button>
+          )}
+        </div>
+        <div className="px-2 pb-2 space-y-1">
+          {textChannels.map(c => (
+            <button
+              key={c.id}
+              onClick={() => onSelect(c.id)}
+              className={`w-full text-left px-2 py-1 rounded truncate ${
+                c.id === activeChannelId ? 'bg-white/15' : 'hover:bg-white/10 text-gray-400'
+              }`}
+            >
+              # {c.name}
+            </button>
+          ))}
+        </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-1">
-        {server.channels.map(c => (
-          <button
-            key={c.id}
-            onClick={() => onSelect(c.id)}
-            className={`w-full text-left px-2 py-1 rounded truncate ${
-              c.id === activeChannelId ? 'bg-white/15' : 'hover:bg-white/10 text-gray-400'
-            }`}
-          >
-            # {c.name}
-          </button>
-        ))}
+        {voiceChannels.length > 0 && (
+          <>
+            <div className="px-4 pt-3 pb-1 text-xs font-semibold uppercase text-gray-400">Voice channels</div>
+            <div className="px-2 pb-2 space-y-1">
+              {voiceChannels.map(c => (
+                <div
+                  key={c.id}
+                  title="Joining voice arrives in the next step"
+                  className="flex items-center justify-between rounded px-2 py-1 text-gray-500"
+                >
+                  <span className="truncate">🔊 {c.name}</span>
+                  <span className="text-[10px] uppercase">soon</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="h-[52px] bg-[#232428] px-3 flex items-center gap-2">

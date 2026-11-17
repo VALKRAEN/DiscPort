@@ -33,7 +33,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const loadServers = useCallback(async (selectServerId?: string, selectChannelId?: string) => {
     const { data, error } = await supabase
       .from('servers')
-      .select('id, name, color, invite_code, channels(id, name, created_at)')
+      .select('id, name, color, invite_code, channels(id, name, kind, created_at)')
       .order('created_at')
       .order('created_at', { referencedTable: 'channels' })
     if (error) console.error(error)
@@ -50,7 +50,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   }, [loadServers])
 
   const server = servers.find(s => s.id === serverId) ?? servers[0] ?? null
-  const channel = server?.channels.find(c => c.id === channelId) ?? server?.channels[0] ?? null
+  const textChannels = server?.channels.filter(c => c.kind === 'text') ?? []
+  const channel = textChannels.find(c => c.id === channelId) ?? textChannels[0] ?? null
   const activeServerId = server?.id
   const activeChannelId = channel?.id
 
