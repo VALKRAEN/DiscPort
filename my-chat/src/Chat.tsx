@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { Server, Profile, Message, Member, Role } from './types'
 import { rank } from './roles'
+import { useVoice } from './useVoice'
 import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
 import ChatArea from './components/ChatArea'
@@ -25,10 +27,17 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
+  const [voiceMap, setVoiceMap] = useState<Record<string, string[]>>({})
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+
+  const voice = useVoice()
+  const presenceRef = useRef<RealtimeChannel | null>(null)
+  const onlineAtRef = useRef(new Date().toISOString())
+  const voiceChannelRef = useRef<string | null>(null)
+  voiceChannelRef.current = voice.channelId
 
   const loadServers = useCallback(async (selectServerId?: string, selectChannelId?: string) => {
     const { data, error } = await supabase
@@ -62,6 +71,15 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const myRank = rank[myRole]
   const selectedMember = members.find(m => m.id === selectedMemberId) ?? null
 
+  // Who is in each voice channel (from presence), with names
+  const voiceOccupants: Record<string, { id: string; name: string }[]> = {}
+  for (const [cid, ids] of Object.entries(voiceMap)) {
+    voiceOccupants[cid] = ids.map(id => ({
+      id,
+      name: members.find(m => m.id === id)?.display_name ?? 'Unknown',
+    }))
+  }
+
   const loadMembers = useCallback(async (sid: string) => {
     const { data, error } = await supabase
       .from('server_members')
@@ -85,29 +103,53 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     loadMembers(activeServerId)
   }, [activeServerId, loadMembers])
 
-  // Presence: announce that we're online in this server, and listen for others
+  // Presence: who is online, and who is in which voice channel
   useEffect(() => {
     if (!activeServerId) {
       setOnlineIds(new Set())
+      setVoiceMap({})
       return
     }
     setOnlineIds(new Set())
+    setVoiceMap({})
     const room = supabase.channel(`presence:${activeServerId}`, {
       config: { presence: { key: profile.id } },
     })
+    presenceRef.current = room
     room
       .on('presence', { event: 'sync' }, () => {
-        setOnlineIds(new Set(Object.keys(room.presenceState())))
+        const state = room.presenceState<{ online_at: string; voice_channel: string | null }>()
+        setOnlineIds(new Set(Object.keys(state)))
+        const map: Record<string, string[]> = {}
+        for (const [userId, metas] of Object.entries(state)) {
+          const vc = metas.find(m => m.voice_channel)?.voice_channel
+          if (vc) (map[vc] ??= []).push(userId)
+        }
+        setVoiceMap(map)
       })
       .subscribe(async status => {
         if (status === 'SUBSCRIBED') {
-          await room.track({ online_at: new Date().toISOString() })
+          await room.track({ online_at: onlineAtRef.current, voice_channel: voiceChannelRef.current })
         }
       })
     return () => {
+      presenceRef.current = null
       supabase.removeChannel(room)
     }
   }, [activeServerId, profile.id])
+
+  // Tell everyone when we join or leave a voice channel
+  useEffect(() => {
+    const room = presenceRef.current
+    if (!room) return
+    void (async () => {
+      try {
+        await room.track({ online_at: onlineAtRef.current, voice_channel: voice.channelId })
+      } catch (e) {
+        console.error(e)
+      }
+    })()
+  }, [voice.channelId])
 
   // Load history and subscribe to new and deleted messages whenever the channel changes
   useEffect(() => {
@@ -162,6 +204,9 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   }, [activeChannelId])
 
   function selectServer(id: string) {
+    // Voice stays connected while you browse channels, but not across servers
+    const voiceServerId = servers.find(s => s.channels.some(c => c.id === voice.channelId))?.id
+    if (voice.channelId && voiceServerId !== id) voice.leave()
     setServerId(id)
     setChannelId(null)
     setSelectedMemberId(null)
@@ -173,6 +218,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   }
 
   function handleLeft() {
+    voice.leave()
     setShowSettings(false)
     setServerId(null)
     setChannelId(null)
@@ -221,6 +267,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
             onSelect={setChannelId}
             profile={profile}
             myRole={myRole}
+            voice={voice}
+            voiceOccupants={voiceOccupants}
             onAddChannel={() => setShowChannelModal(true)}
             onOpenSettings={() => setShowSettings(true)}
             onEditProfile={onEditProfile}
