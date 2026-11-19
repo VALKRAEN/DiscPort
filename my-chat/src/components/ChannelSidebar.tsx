@@ -13,6 +13,8 @@ type Props = {
   myRole: Role
   voice: VoiceApi
   voiceOccupants: Record<string, { id: string; name: string }[]>
+  voiceLabel: { channel: string; server: string; here: boolean } | null
+  onGoToVoice: () => void
   onAddChannel: () => void
   onOpenSettings: () => void
   onEditProfile: () => void
@@ -27,6 +29,8 @@ export default function ChannelSidebar({
   myRole,
   voice,
   voiceOccupants,
+  voiceLabel,
+  onGoToVoice,
   onAddChannel,
   onOpenSettings,
   onEditProfile,
@@ -36,7 +40,6 @@ export default function ChannelSidebar({
   const canManage = rank[myRole] >= 3
   const textChannels = server.channels.filter(c => c.kind === 'text')
   const voiceChannels = server.channels.filter(c => c.kind === 'voice')
-  const joinedChannel = server.channels.find(c => c.id === voice.channelId)
 
   function copyCode() {
     navigator.clipboard.writeText(server.invite_code)
@@ -120,6 +123,9 @@ export default function ChannelSidebar({
                               {p.name[0]?.toUpperCase()}
                             </span>
                             <span className="truncate">{p.name}</span>
+                            {p.sharing && (
+                              <span className="rounded bg-red-500 px-1 text-[10px] font-bold text-white">LIVE</span>
+                            )}
                             {p.muted && <span title="Muted" className="text-xs">🔇</span>}
                           </div>
                         ))
@@ -144,7 +150,12 @@ export default function ChannelSidebar({
         )}
       </div>
 
-      <VoiceBar voice={voice} channelName={joinedChannel?.name ?? ''} />
+      <VoiceBar
+        voice={voice}
+        channelName={voiceLabel?.channel ?? ''}
+        serverName={voiceLabel && !voiceLabel.here ? voiceLabel.server : undefined}
+        onGoTo={voiceLabel && !voiceLabel.here ? onGoToVoice : undefined}
+      />
 
       <div className="flex h-[52px] items-center gap-1 bg-[#232428] px-3">
         <div

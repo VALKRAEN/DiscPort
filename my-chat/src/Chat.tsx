@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { Server, Profile, Message, Member, Role } from './types'
 import { rank } from './roles'
 import { useVoice } from './useVoice'
+import { useVoicePresence } from './useVoicePresence'
 import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
 import ChatArea from './components/ChatArea'
@@ -13,6 +13,7 @@ import ChannelModal from './components/ChannelModal'
 import ProfileCard from './components/ProfileCard'
 import ServerSettings from './components/ServerSettings'
 import VoiceBar from './components/VoiceBar'
+import ScreenStage from './components/ScreenStage'
 
 type Props = {
   profile: Profile
@@ -28,7 +29,6 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
-  const [voiceMap, setVoiceMap] = useState<Record<string, string[]>>({})
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [showChannelModal, setShowChannelModal] = useState(false)
@@ -37,10 +37,6 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [membersOpen, setMembersOpen] = useState(false) // mobile: members panel
 
   const voice = useVoice()
-  const presenceRef = useRef<RealtimeChannel | null>(null)
-  const onlineAtRef = useRef(new Date().toISOString())
-  const voiceChannelRef = useRef<string | null>(null)
-  voiceChannelRef.current = voice.channelId
 
   const loadServers = useCallback(async (selectServerId?: string, selectChannelId?: string) => {
     const { data, error } = await supabase
@@ -73,9 +69,22 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const myRole: Role = members.find(m => m.id === profile.id)?.role ?? 'member'
   const myRank = rank[myRole]
   const selectedMember = members.find(m => m.id === selectedMemberId) ?? null
-  const joinedChannelName = server?.channels.find(c => c.id === voice.channelId)?.name ?? ''
 
-  // Who is in each voice channel (from presence), with names
+  // Which server is the call in? It can differ from the server you're viewing
+  const voiceServer = voice.channelId
+    ? servers.find(s => s.channels.some(c => c.id === voice.channelId)) ?? null
+    : null
+  const voiceServerId = voiceServer?.id ?? null
+  const voiceLabel = voiceServer
+    ? {
+        channel: voiceServer.channels.find(c => c.id === voice.channelId)?.name ?? '',
+        server: voiceServer.name,
+        here: voiceServer.id === activeServerId,
+      }
+    : null
+
+  // Who is in each voice channel of the server you're viewing
+  const voiceMap = useVoicePresence(profile.id, activeServerId, voiceServerId, voice.channelId)
   const voiceOccupants: Record<string, { id: string; name: string }[]> = {}
   for (const [cid, ids] of Object.entries(voiceMap)) {
     voiceOccupants[cid] = ids.map(id => ({
@@ -107,53 +116,29 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     loadMembers(activeServerId)
   }, [activeServerId, loadMembers, profile.display_name, profile.username, profile.bio])
 
-  // Presence: who is online, and who is in which voice channel
+  // Presence: who is online in the server you're viewing
   useEffect(() => {
     if (!activeServerId) {
       setOnlineIds(new Set())
-      setVoiceMap({})
       return
     }
     setOnlineIds(new Set())
-    setVoiceMap({})
     const room = supabase.channel(`presence:${activeServerId}`, {
       config: { presence: { key: profile.id } },
     })
-    presenceRef.current = room
     room
       .on('presence', { event: 'sync' }, () => {
-        const state = room.presenceState<{ online_at: string; voice_channel: string | null }>()
-        setOnlineIds(new Set(Object.keys(state)))
-        const map: Record<string, string[]> = {}
-        for (const [userId, metas] of Object.entries(state)) {
-          const vc = metas.find(m => m.voice_channel)?.voice_channel
-          if (vc) (map[vc] ??= []).push(userId)
-        }
-        setVoiceMap(map)
+        setOnlineIds(new Set(Object.keys(room.presenceState())))
       })
       .subscribe(async status => {
         if (status === 'SUBSCRIBED') {
-          await room.track({ online_at: onlineAtRef.current, voice_channel: voiceChannelRef.current })
+          await room.track({ online_at: new Date().toISOString() })
         }
       })
     return () => {
-      presenceRef.current = null
       supabase.removeChannel(room)
     }
   }, [activeServerId, profile.id])
-
-  // Tell everyone when we join or leave a voice channel
-  useEffect(() => {
-    const room = presenceRef.current
-    if (!room) return
-    void (async () => {
-      try {
-        await room.track({ online_at: onlineAtRef.current, voice_channel: voice.channelId })
-      } catch (e) {
-        console.error(e)
-      }
-    })()
-  }, [voice.channelId])
 
   // Load history and subscribe to new and deleted messages whenever the channel changes
   useEffect(() => {
@@ -207,13 +192,16 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     }
   }, [activeChannelId])
 
+  // Switching servers no longer touches your call
   function selectServer(id: string) {
-    // Voice stays connected while you browse channels, but not across servers
-    const voiceServerId = servers.find(s => s.channels.some(c => c.id === voice.channelId))?.id
-    if (voice.channelId && voiceServerId !== id) voice.leave()
     setServerId(id)
     setChannelId(null)
     setSelectedMemberId(null)
+  }
+
+  function goToVoice() {
+    if (voiceServer) selectServer(voiceServer.id)
+    setNavOpen(false)
   }
 
   async function refresh() {
@@ -222,7 +210,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   }
 
   function handleLeft() {
-    voice.leave()
+    // Only hang up if the call was in the server you just left
+    if (voiceServerId && voiceServerId === activeServerId) voice.leave()
     setShowSettings(false)
     setServerId(null)
     setChannelId(null)
@@ -289,6 +278,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
             myRole={myRole}
             voice={voice}
             voiceOccupants={voiceOccupants}
+            voiceLabel={voiceLabel}
+            onGoToVoice={goToVoice}
             onAddChannel={() => {
               setNavOpen(false)
               setShowChannelModal(true)
@@ -311,8 +302,15 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* On phones the voice controls live here, so they are visible without opening the panel */}
             <div className="md:hidden">
-              <VoiceBar voice={voice} channelName={joinedChannelName} edge="bottom" />
+              <VoiceBar
+                voice={voice}
+                channelName={voiceLabel?.channel ?? ''}
+                serverName={voiceLabel && !voiceLabel.here ? voiceLabel.server : undefined}
+                onGoTo={voiceLabel && !voiceLabel.here ? goToVoice : undefined}
+                edge="bottom"
+              />
             </div>
+            <ScreenStage shares={voice.screens.filter(s => !s.isMe)} />
             <ChatArea
               channel={channel}
               messages={messages}

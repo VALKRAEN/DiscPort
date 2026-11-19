@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Room, RoomEvent, Track } from 'livekit-client'
-import type { Participant, RemoteTrack } from 'livekit-client'
+import type { LocalVideoTrack, Participant, RemoteTrack, RemoteVideoTrack } from 'livekit-client'
 import { supabase } from './supabase'
 
 export type VoiceParticipant = {
@@ -8,9 +8,20 @@ export type VoiceParticipant = {
   name: string
   speaking: boolean
   muted: boolean
+  sharing: boolean
   isMe: boolean
 }
+export type ScreenShare = {
+  id: string
+  name: string
+  isMe: boolean
+  track: LocalVideoTrack | RemoteVideoTrack
+}
 export type VoiceStatus = 'idle' | 'connecting' | 'connected'
+
+// Phones and some browsers cannot share their screen (they can still watch others)
+export const canShareScreen =
+  typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.getDisplayMedia === 'function'
 
 export function useVoice() {
   const roomRef = useRef<Room | null>(null)
@@ -27,6 +38,7 @@ export function useVoice() {
   const [muted, setMutedState] = useState(false)
   const [deafened, setDeafenedState] = useState(false)
   const [participants, setParticipants] = useState<VoiceParticipant[]>([])
+  const [screens, setScreens] = useState<ScreenShare[]>([])
 
   const setMuted = useCallback((v: boolean) => {
     mutedRef.current = v
@@ -39,17 +51,35 @@ export function useVoice() {
   }, [])
 
   const snapshot = useCallback((room: Room) => {
-    const toP = (p: Participant, isMe: boolean): VoiceParticipant => ({
-      id: p.identity,
-      name: p.name || 'Unknown',
-      speaking: p.isSpeaking,
-      muted: !p.isMicrophoneEnabled,
-      isMe,
-    })
-    setParticipants([
-      toP(room.localParticipant, true),
-      ...Array.from(room.remoteParticipants.values()).map(p => toP(p, false)),
-    ])
+    const all: { p: Participant; isMe: boolean }[] = [
+      { p: room.localParticipant, isMe: true },
+      ...Array.from(room.remoteParticipants.values()).map(p => ({ p, isMe: false })),
+    ]
+
+    setParticipants(
+      all.map(({ p, isMe }) => ({
+        id: p.identity,
+        name: p.name || 'Unknown',
+        speaking: p.isSpeaking,
+        muted: !p.isMicrophoneEnabled,
+        sharing: p.isScreenShareEnabled,
+        isMe,
+      }))
+    )
+
+    const shares: ScreenShare[] = []
+    for (const { p, isMe } of all) {
+      const track = p.getTrackPublication(Track.Source.ScreenShare)?.track
+      if (track && track.kind === Track.Kind.Video) {
+        shares.push({
+          id: p.identity,
+          name: p.name || 'Unknown',
+          isMe,
+          track: track as LocalVideoTrack | RemoteVideoTrack,
+        })
+      }
+    }
+    setScreens(shares)
   }, [])
 
   const reset = useCallback(() => {
@@ -62,6 +92,7 @@ export function useVoice() {
     setChannelId(null)
     setStatus('idle')
     setParticipants([])
+    setScreens([])
   }, [setMuted, setDeafened])
 
   const leave = useCallback(() => {
@@ -122,17 +153,24 @@ export function useVoice() {
 
       room
         .on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-          if (track.kind !== Track.Kind.Audio) return
-          const el = track.attach()
-          el.muted = deafenedRef.current
-          document.body.appendChild(el)
-          audioEls.current.add(el)
+          if (track.kind === Track.Kind.Audio) {
+            // Covers microphones and shared-tab audio
+            const el = track.attach()
+            el.muted = deafenedRef.current
+            document.body.appendChild(el)
+            audioEls.current.add(el)
+            return
+          }
+          refresh() // a screen share started
         })
         .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-          track.detach().forEach(el => {
-            el.remove()
-            audioEls.current.delete(el)
-          })
+          if (track.kind === Track.Kind.Audio) {
+            track.detach().forEach(el => {
+              el.remove()
+              audioEls.current.delete(el)
+            })
+          }
+          refresh()
         })
         .on(RoomEvent.ParticipantConnected, refresh)
         .on(RoomEvent.ParticipantDisconnected, refresh)
@@ -140,6 +178,7 @@ export function useVoice() {
         .on(RoomEvent.TrackMuted, refresh)
         .on(RoomEvent.TrackUnmuted, refresh)
         .on(RoomEvent.LocalTrackPublished, refresh)
+        .on(RoomEvent.LocalTrackUnpublished, refresh)
         .on(RoomEvent.Disconnected, () => {
           if (roomRef.current === room) {
             roomRef.current = null
@@ -225,6 +264,24 @@ export function useVoice() {
     if (roomRef.current === room) snapshot(room)
   }, [toggleDeafen, setMuted, snapshot])
 
+  const toggleScreenShare = useCallback(async () => {
+    const room = roomRef.current
+    if (!room) return
+    const next = !room.localParticipant.isScreenShareEnabled
+    try {
+      // audio: true also shares tab or system sound where the browser supports it
+      await room.localParticipant.setScreenShareEnabled(next, next ? { audio: true } : undefined)
+    } catch (e) {
+      // Closing the picker without choosing anything is not worth an error message
+      const name = (e as { name?: string })?.name
+      if (name !== 'NotAllowedError' && name !== 'AbortError') {
+        console.error(e)
+        setError('Could not start screen sharing.')
+      }
+    }
+    if (roomRef.current === room) snapshot(room)
+  }, [snapshot])
+
   // Disconnect when the component goes away (for example on sign out)
   useEffect(
     () => () => {
@@ -238,7 +295,23 @@ export function useVoice() {
     []
   )
 
-  return { channelId, status, error, muted, deafened, participants, join, leave, toggleMute, toggleDeafen }
+  const sharing = screens.some(s => s.isMe)
+
+  return {
+    channelId,
+    status,
+    error,
+    muted,
+    deafened,
+    participants,
+    screens,
+    sharing,
+    join,
+    leave,
+    toggleMute,
+    toggleDeafen,
+    toggleScreenShare,
+  }
 }
 
 export type VoiceApi = ReturnType<typeof useVoice>
