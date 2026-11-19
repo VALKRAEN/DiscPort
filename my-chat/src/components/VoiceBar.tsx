@@ -3,15 +3,17 @@ import type { VoiceApi } from '../useVoice'
 type Props = {
   voice: VoiceApi
   channelName: string
+  edge?: 'top' | 'bottom' // which side gets the divider line
 }
 
-export default function VoiceBar({ voice, channelName }: Props) {
+export default function VoiceBar({ voice, channelName, edge = 'top' }: Props) {
   if (!voice.channelId) return null
   const connected = voice.status === 'connected'
-  const btn = 'flex h-8 w-8 items-center justify-center rounded hover:bg-white/10 disabled:opacity-40'
+  const btn =
+    'flex h-10 w-10 items-center justify-center rounded hover:bg-white/10 disabled:opacity-40 md:h-8 md:w-8'
 
   return (
-    <div className="border-t border-black/20 bg-[#232428] px-3 py-2">
+    <div className={`${edge === 'bottom' ? 'border-b' : 'border-t'} border-black/20 bg-[#232428] px-3 py-2`}>
       <div className="flex items-center gap-1">
         <div className="min-w-0 flex-1 leading-tight">
           <div className={`text-xs font-semibold ${connected ? 'text-green-400' : 'text-yellow-400'}`}>
@@ -38,7 +40,7 @@ export default function VoiceBar({ voice, channelName }: Props) {
         <button
           onClick={voice.leave}
           title="Leave voice"
-          className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-400 hover:bg-red-500 hover:text-white"
+          className="rounded bg-red-500/20 px-3 py-2 text-xs text-red-400 hover:bg-red-500 hover:text-white md:px-2 md:py-1"
         >
           Leave
         </button>

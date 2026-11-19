@@ -53,7 +53,7 @@ export default function AuthScreen() {
   const buttonLabel = mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Sign up' : 'Send reset link'
 
   return (
-    <div className="h-screen flex items-center justify-center bg-[#313338] text-gray-100">
+    <div className="min-h-dvh flex items-center justify-center bg-[#313338] p-4 text-gray-100">
       <div className="w-full max-w-sm bg-[#2b2d31] rounded-lg p-8 space-y-4">
         <h1 className="text-2xl font-bold text-center">{title}</h1>
         <input

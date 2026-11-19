@@ -18,7 +18,7 @@ export default function ProfileCard({ member, online, onClose }: Props) {
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70" onClick={onClose}>
+    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
         className="relative w-full max-w-sm overflow-hidden rounded-lg bg-[#232428] text-gray-100"
         onClick={e => e.stopPropagation()}

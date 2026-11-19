@@ -45,15 +45,19 @@ export default function ChannelSidebar({
   }
 
   return (
-    <aside className="w-60 bg-[#2b2d31] flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-black/20">
+    <aside className="flex w-60 flex-col bg-[#2b2d31]">
+      <div className="flex items-center gap-1 border-b border-black/20 px-4 py-2">
         <div className="min-w-0 flex-1">
-          <div className="font-semibold truncate">{server.name}</div>
-          <button onClick={copyCode} className="text-xs text-gray-400 hover:text-white" title="Click to copy">
+          <div className="truncate font-semibold">{server.name}</div>
+          <button onClick={copyCode} className="py-1 text-xs text-gray-400 hover:text-white" title="Click to copy">
             {copied ? 'Copied!' : `Invite code: ${server.invite_code}`}
           </button>
         </div>
-        <button onClick={onOpenSettings} title="Server settings" className="text-xl text-gray-400 hover:text-white">
+        <button
+          onClick={onOpenSettings}
+          title="Server settings"
+          className="px-2 py-1 text-2xl text-gray-400 hover:text-white"
+        >
           ⚙
         </button>
       </div>
@@ -62,18 +66,22 @@ export default function ChannelSidebar({
         <div className="flex items-center justify-between px-4 pt-4 pb-1 text-xs font-semibold uppercase text-gray-400">
           <span>Text channels</span>
           {canManage && (
-            <button onClick={onAddChannel} title="Create channel" className="text-lg leading-none hover:text-white">
+            <button
+              onClick={onAddChannel}
+              title="Create channel"
+              className="-my-1 px-2 py-1 text-2xl leading-none hover:text-white"
+            >
               +
             </button>
           )}
         </div>
-        <div className="px-2 pb-2 space-y-1">
+        <div className="space-y-1 px-2 pb-2">
           {textChannels.map(c => (
             <button
               key={c.id}
               onClick={() => onSelect(c.id)}
-              className={`w-full text-left px-2 py-1 rounded truncate ${
-                c.id === activeChannelId ? 'bg-white/15' : 'hover:bg-white/10 text-gray-400'
+              className={`w-full truncate rounded px-2 py-2 text-left md:py-1 ${
+                c.id === activeChannelId ? 'bg-white/15' : 'text-gray-400 hover:bg-white/10'
               }`}
             >
               # {c.name}
@@ -94,8 +102,8 @@ export default function ChannelSidebar({
                       onClick={() => voice.join(c.id)}
                       disabled={voice.status === 'connecting'}
                       title={joined ? 'You are in this channel' : 'Click to join'}
-                      className={`w-full text-left px-2 py-1 rounded truncate disabled:opacity-60 ${
-                        joined ? 'bg-white/15' : 'hover:bg-white/10 text-gray-400'
+                      className={`w-full truncate rounded px-2 py-2 text-left disabled:opacity-60 md:py-1 ${
+                        joined ? 'bg-white/15' : 'text-gray-400 hover:bg-white/10'
                       }`}
                     >
                       🔊 {c.name}
@@ -138,9 +146,11 @@ export default function ChannelSidebar({
 
       <VoiceBar voice={voice} channelName={joinedChannel?.name ?? ''} />
 
-      <div className="h-[52px] bg-[#232428] px-3 flex items-center gap-2">
+      <div className="flex h-[52px] items-center gap-1 bg-[#232428] px-3">
         <div
-          className={`w-8 h-8 shrink-0 rounded-full ${colorFor(profile.id)} flex items-center justify-center text-sm font-bold`}
+          className={`mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${colorFor(
+            profile.id
+          )}`}
         >
           {profile.display_name[0]?.toUpperCase()}
         </div>
@@ -148,10 +158,10 @@ export default function ChannelSidebar({
           <div className="truncate text-sm font-semibold">{profile.display_name}</div>
           <div className="truncate text-xs text-gray-400">@{profile.username}</div>
         </div>
-        <button onClick={onEditProfile} title="Edit profile" className="text-xs text-gray-400 hover:text-white">
+        <button onClick={onEditProfile} title="Edit profile" className="px-2 py-2 text-xs text-gray-400 hover:text-white">
           Edit
         </button>
-        <button onClick={onSignOut} title="Sign out" className="text-xs text-gray-400 hover:text-white">
+        <button onClick={onSignOut} title="Sign out" className="px-2 py-2 text-xs text-gray-400 hover:text-white">
           Out
         </button>
       </div>

@@ -30,7 +30,7 @@ export default function ChannelModal({ serverId, onClose, onDone }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70">
+    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4">
       <div className="w-full max-w-sm bg-[#313338] text-gray-100 rounded-lg p-6 space-y-4">
         <h2 className="text-lg font-bold">Create channel</h2>
 

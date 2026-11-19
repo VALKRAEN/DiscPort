@@ -12,6 +12,8 @@ type Props = {
   onSend: (text: string) => Promise<string | null>
   onDelete: (id: number) => Promise<string | null>
   onSelectMember: (id: string) => void
+  onOpenNav: () => void
+  onOpenMembers: () => void
 }
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000
@@ -43,16 +45,30 @@ export default function ChatArea({
   onSend,
   onDelete,
   onSelectMember,
+  onOpenNav,
+  onOpenMembers,
 }: Props) {
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
+  const [selectedId, setSelectedId] = useState<number | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length, channel.id])
 
+  useEffect(() => {
+    setSelectedId(null)
+  }, [channel.id])
+
   const memberOf = (userId: string) => members.find(m => m.id === userId)
+
+  // On touch screens there is no hover, so tapping a message reveals its actions
+  function tapMessage(id: number) {
+    if (window.matchMedia('(hover: none)').matches) {
+      setSelectedId(prev => (prev === id ? null : id))
+    }
+  }
 
   async function submit() {
     const text = draft.trim()
@@ -68,14 +84,29 @@ export default function ChatArea({
 
   async function remove(id: number) {
     setError('')
+    setSelectedId(null)
     const err = await onDelete(id)
     if (err) setError(err)
   }
 
   return (
-    <main className="flex-1 flex flex-col min-w-0">
-      <header className="h-12 border-b border-black/20 px-4 flex items-center font-semibold">
-        # {channel.name}
+    <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 px-2 font-semibold md:px-4">
+        <button
+          onClick={onOpenNav}
+          title="Servers and channels"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 md:hidden"
+        >
+          ☰
+        </button>
+        <span className="min-w-0 flex-1 truncate"># {channel.name}</span>
+        <button
+          onClick={onOpenMembers}
+          title="Members"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 lg:hidden"
+        >
+          👥
+        </button>
       </header>
 
       <div className="flex-1 overflow-y-auto py-4">
@@ -93,12 +124,18 @@ export default function ChatArea({
           const name = member?.display_name ?? 'Unknown user'
           const authorRank = member ? rank[member.role] : 0
           const canDelete = m.user_id === myId || (myRank >= 2 && myRank > authorRank)
+          const selected = selectedId === m.id
 
           const deleteButton = canDelete && (
             <button
-              onClick={() => remove(m.id)}
+              onClick={e => {
+                e.stopPropagation()
+                remove(m.id)
+              }}
               title="Delete message"
-              className="absolute right-4 top-0 hidden rounded bg-[#2b2d31] px-2 py-0.5 text-xs text-red-400 shadow hover:bg-red-500 hover:text-white group-hover:block"
+              className={`absolute right-2 top-0 rounded bg-[#2b2d31] px-3 py-1.5 text-sm text-red-400 shadow hover:bg-red-500 hover:text-white md:right-4 md:px-2 md:py-0.5 md:text-xs ${
+                selected ? 'block' : 'hidden group-hover:block'
+              }`}
             >
               Delete
             </button>
@@ -115,18 +152,33 @@ export default function ChatArea({
               )}
 
               {grouped ? (
-                <div className="group relative flex px-4 py-0.5 hover:bg-black/10">
-                  <span className="absolute left-4 w-10 pt-1 text-center text-[10px] text-gray-500 opacity-0 group-hover:opacity-100">
+                <div
+                  onClick={() => tapMessage(m.id)}
+                  className={`group relative flex px-4 py-0.5 hover:bg-black/10 ${selected ? 'bg-black/20' : ''}`}
+                >
+                  <span
+                    className={`absolute left-4 w-10 pt-1 text-center text-[10px] text-gray-500 ${
+                      selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
                     {formatTime(m.created_at)}
                   </span>
-                  <p className="ml-[52px] break-words whitespace-pre-wrap min-w-0">{m.content}</p>
+                  <p className="ml-[52px] min-w-0 whitespace-pre-wrap break-words">{m.content}</p>
                   {deleteButton}
                 </div>
               ) : (
-                <div className="group relative flex gap-3 px-4 pt-3 pb-0.5 hover:bg-black/10">
+                <div
+                  onClick={() => tapMessage(m.id)}
+                  className={`group relative flex gap-3 px-4 pt-3 pb-0.5 hover:bg-black/10 ${
+                    selected ? 'bg-black/20' : ''
+                  }`}
+                >
                   <button
-                    onClick={() => member && onSelectMember(member.id)}
-                    className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center font-bold ${
+                    onClick={e => {
+                      e.stopPropagation()
+                      if (member) onSelectMember(member.id)
+                    }}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold ${
                       member ? colorFor(member.id) : 'bg-gray-600'
                     }`}
                   >
@@ -135,14 +187,17 @@ export default function ChatArea({
                   <div className="min-w-0">
                     <div className="leading-tight">
                       <button
-                        onClick={() => member && onSelectMember(member.id)}
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (member) onSelectMember(member.id)
+                        }}
                         className="font-semibold hover:underline"
                       >
                         {name}
                       </button>
                       <span className="ml-2 text-xs text-gray-400">{formatTime(m.created_at)}</span>
                     </div>
-                    <p className="break-words whitespace-pre-wrap">{m.content}</p>
+                    <p className="whitespace-pre-wrap break-words">{m.content}</p>
                   </div>
                   {deleteButton}
                 </div>
@@ -153,12 +208,13 @@ export default function ChatArea({
         <div ref={bottomRef} />
       </div>
 
-      <div className="p-4">
+      <div className="shrink-0 p-3 md:p-4">
         {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
         <input
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
+          enterKeyHint="send"
           maxLength={2000}
           className="w-full rounded-lg bg-[#383a40] px-4 py-3 outline-none"
           placeholder={`Message #${channel.name}`}

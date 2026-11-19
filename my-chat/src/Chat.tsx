@@ -12,6 +12,7 @@ import ServerModal from './components/ServerModal'
 import ChannelModal from './components/ChannelModal'
 import ProfileCard from './components/ProfileCard'
 import ServerSettings from './components/ServerSettings'
+import VoiceBar from './components/VoiceBar'
 
 type Props = {
   profile: Profile
@@ -32,6 +33,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [navOpen, setNavOpen] = useState(false) // mobile: servers and channels panel
+  const [membersOpen, setMembersOpen] = useState(false) // mobile: members panel
 
   const voice = useVoice()
   const presenceRef = useRef<RealtimeChannel | null>(null)
@@ -70,6 +73,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const myRole: Role = members.find(m => m.id === profile.id)?.role ?? 'member'
   const myRank = rank[myRole]
   const selectedMember = members.find(m => m.id === selectedMemberId) ?? null
+  const joinedChannelName = server?.channels.find(c => c.id === voice.channelId)?.name ?? ''
 
   // Who is in each voice channel (from presence), with names
   const voiceOccupants: Record<string, { id: string; name: string }[]> = {}
@@ -94,7 +98,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     setMembers(list)
   }, [])
 
-  // Load members whenever the active server changes
+  // Load members whenever the active server changes (or your own profile is edited)
   useEffect(() => {
     if (!activeServerId) {
       setMembers([])
@@ -247,57 +251,110 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   }
 
   if (loading) {
-    return <div className="h-screen flex items-center justify-center bg-[#313338] text-gray-400">Loading...</div>
+    return <div className="h-dvh flex items-center justify-center bg-[#313338] text-gray-400">Loading...</div>
   }
 
   return (
-    <div className="flex h-screen bg-[#313338] text-gray-100">
-      <ServerRail
-        servers={servers}
-        activeId={server?.id ?? null}
-        onSelect={selectServer}
-        onAdd={() => setShowModal(true)}
-      />
+    <div className="flex h-dvh bg-[#313338] text-gray-100">
+      {/* Dimmed backdrops that close the mobile panels */}
+      {navOpen && <div className="fixed inset-0 z-[5] bg-black/60 md:hidden" onClick={() => setNavOpen(false)} />}
+      {membersOpen && (
+        <div className="fixed inset-0 z-[5] bg-black/60 lg:hidden" onClick={() => setMembersOpen(false)} />
+      )}
 
-      {server && channel ? (
-        <>
+      {/* Servers and channels: a slide-out panel on phones, a fixed column on larger screens */}
+      <div
+        className={`fixed inset-y-0 left-0 z-[6] flex transition-transform duration-200 md:static md:z-auto md:translate-x-0 ${
+          navOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <ServerRail
+          servers={servers}
+          activeId={server?.id ?? null}
+          onSelect={selectServer}
+          onAdd={() => {
+            setNavOpen(false)
+            setShowModal(true)
+          }}
+        />
+        {server && channel && (
           <ChannelSidebar
             server={server}
             activeChannelId={channel.id}
-            onSelect={setChannelId}
+            onSelect={id => {
+              setChannelId(id)
+              setNavOpen(false)
+            }}
             profile={profile}
             myRole={myRole}
             voice={voice}
             voiceOccupants={voiceOccupants}
-            onAddChannel={() => setShowChannelModal(true)}
-            onOpenSettings={() => setShowSettings(true)}
-            onEditProfile={onEditProfile}
+            onAddChannel={() => {
+              setNavOpen(false)
+              setShowChannelModal(true)
+            }}
+            onOpenSettings={() => {
+              setNavOpen(false)
+              setShowSettings(true)
+            }}
+            onEditProfile={() => {
+              setNavOpen(false)
+              onEditProfile()
+            }}
             onSignOut={onSignOut}
           />
-          <ChatArea
-            channel={channel}
-            messages={messages}
-            members={members}
-            myId={profile.id}
-            myRank={myRank}
-            onSend={sendMessage}
-            onDelete={deleteMessage}
-            onSelectMember={setSelectedMemberId}
-          />
-          <MemberList members={members} onlineIds={onlineIds} onSelect={setSelectedMemberId} />
+        )}
+      </div>
+
+      {server && channel ? (
+        <>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* On phones the voice controls live here, so they are visible without opening the panel */}
+            <div className="md:hidden">
+              <VoiceBar voice={voice} channelName={joinedChannelName} edge="bottom" />
+            </div>
+            <ChatArea
+              channel={channel}
+              messages={messages}
+              members={members}
+              myId={profile.id}
+              myRank={myRank}
+              onSend={sendMessage}
+              onDelete={deleteMessage}
+              onSelectMember={setSelectedMemberId}
+              onOpenNav={() => setNavOpen(true)}
+              onOpenMembers={() => setMembersOpen(true)}
+            />
+          </div>
+
+          {/* Members: a slide-out panel below the large breakpoint, a fixed column above it */}
+          <div
+            className={`fixed inset-y-0 right-0 z-[6] w-72 max-w-[85vw] transition-transform duration-200 lg:static lg:z-auto lg:w-60 lg:max-w-none lg:translate-x-0 ${
+              membersOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}
+          >
+            <MemberList
+              members={members}
+              onlineIds={onlineIds}
+              onSelect={id => {
+                setSelectedMemberId(id)
+                setMembersOpen(false)
+              }}
+            />
+          </div>
         </>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-4">
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">
           <h2 className="text-xl font-semibold">You're not in any servers yet</h2>
           <p className="text-gray-400">Create one, or join a friend's with an invite code.</p>
           <div className="flex gap-2">
             <button
               onClick={() => setShowModal(true)}
-              className="rounded bg-indigo-500 hover:bg-indigo-600 px-4 py-2 font-semibold"
+              className="rounded bg-indigo-500 px-4 py-2 font-semibold hover:bg-indigo-600"
             >
               Create or join
             </button>
-            <button onClick={onSignOut} className="rounded bg-white/10 hover:bg-white/20 px-4 py-2">
+            <button onClick={onSignOut} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
               Sign out
             </button>
           </div>

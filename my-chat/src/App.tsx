@@ -135,7 +135,7 @@ export default function App() {
     )
   } else if (view === 'password') {
     overlay = (
-      <div className="h-screen flex items-center justify-center bg-[#313338] text-gray-100">
+      <div className="min-h-dvh flex items-center justify-center bg-[#313338] p-4 text-gray-100">
         <div className="w-full max-w-sm bg-[#2b2d31] rounded-lg p-8 space-y-4 text-center">
           <h1 className="text-2xl font-bold">Change password</h1>
           <p className="text-sm text-gray-400">
@@ -161,7 +161,7 @@ export default function App() {
         onEditProfile={() => setView('editProfile')}
         onSignOut={() => supabase.auth.signOut()}
       />
-      {overlay && <div className="fixed inset-0 z-20">{overlay}</div>}
+      {overlay && <div className="fixed inset-0 z-20 overflow-y-auto">{overlay}</div>}
     </>
   )
 }

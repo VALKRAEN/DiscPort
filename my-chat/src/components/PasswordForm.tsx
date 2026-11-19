@@ -51,7 +51,7 @@ export default function PasswordForm({ email, onDone, onCancel }: Props) {
   const labelClass = 'block text-xs font-semibold uppercase text-gray-400'
 
   return (
-    <div className="h-screen flex items-center justify-center bg-[#313338] text-gray-100">
+    <div className="min-h-dvh flex items-center justify-center bg-[#313338] p-4 text-gray-100">
       <div className="w-full max-w-sm bg-[#2b2d31] rounded-lg p-8 space-y-4">
         <h1 className="text-2xl font-bold text-center">
           {email ? 'Change password' : 'Choose a new password'}

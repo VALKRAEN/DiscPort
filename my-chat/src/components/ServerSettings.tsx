@@ -69,22 +69,22 @@ export default function ServerSettings({ server, myRole, members, myId, onClose,
     return true
   }
 
-  const btn = 'rounded px-2 py-1 text-xs disabled:opacity-50'
+  const btn = 'rounded px-3 py-2 text-sm disabled:opacity-50 md:px-2 md:py-1 md:text-xs'
 
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div
-        className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-lg bg-[#313338] text-gray-100"
+        className="flex max-h-[90dvh] w-full max-w-xl flex-col rounded-lg bg-[#313338] text-gray-100"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-black/30 px-5 py-3">
           <h2 className="truncate text-lg font-bold">{server.name} settings</h2>
-          <button onClick={onClose} title="Close" className="text-gray-400 hover:text-white">
+          <button onClick={onClose} title="Close" className="px-2 text-xl text-gray-400 hover:text-white">
             ✕
           </button>
         </div>
 
-        <div className="flex gap-2 border-b border-black/30 px-5 py-2">
+        <div className="flex gap-2 overflow-x-auto border-b border-black/30 px-5 py-2">
           {tabs.map(t => (
             <button
               key={t.id}
@@ -93,7 +93,7 @@ export default function ServerSettings({ server, myRole, members, myId, onClose,
                 setError('')
                 setInfo('')
               }}
-              className={`rounded px-3 py-1 text-sm font-semibold ${
+              className={`shrink-0 whitespace-nowrap rounded px-3 py-2 text-sm font-semibold ${
                 tab === t.id ? 'bg-indigo-500' : 'bg-white/10 hover:bg-white/20'
               }`}
             >
@@ -228,7 +228,7 @@ export default function ServerSettings({ server, myRole, members, myId, onClose,
                             onChanged
                           )
                         }
-                        className="rounded bg-[#1e1f22] px-2 py-1 text-xs outline-none"
+                        className="rounded bg-[#1e1f22] px-2 py-2 text-base outline-none md:py-1 md:text-xs"
                       >
                         <option value="member">Member</option>
                         <option value="moderator">Moderator</option>
