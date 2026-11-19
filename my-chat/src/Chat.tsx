@@ -101,7 +101,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
       return
     }
     loadMembers(activeServerId)
-  }, [activeServerId, loadMembers])
+  }, [activeServerId, loadMembers, profile.display_name, profile.username, profile.bio])
 
   // Presence: who is online, and who is in which voice channel
   useEffect(() => {

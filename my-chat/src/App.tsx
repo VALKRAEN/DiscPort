@@ -116,8 +116,12 @@ export default function App() {
   if (!profileLoaded) return <Loading />
   if (!profile) return <ProfileForm userId={session.user.id} onSaved={setProfile} />
 
+  // These screens sit on top of the chat instead of replacing it,
+  // so an active voice call keeps running while you use them
+  let overlay = null
+
   if (view === 'editProfile') {
-    return (
+    overlay = (
       <ProfileForm
         userId={session.user.id}
         initial={profile}
@@ -129,10 +133,8 @@ export default function App() {
         onChangePassword={() => setView('password')}
       />
     )
-  }
-
-  if (view === 'password') {
-    return (
+  } else if (view === 'password') {
+    overlay = (
       <div className="h-screen flex items-center justify-center bg-[#313338] text-gray-100">
         <div className="w-full max-w-sm bg-[#2b2d31] rounded-lg p-8 space-y-4 text-center">
           <h1 className="text-2xl font-bold">Change password</h1>
@@ -153,10 +155,13 @@ export default function App() {
   }
 
   return (
-    <Chat
-      profile={profile}
-      onEditProfile={() => setView('editProfile')}
-      onSignOut={() => supabase.auth.signOut()}
-    />
+    <>
+      <Chat
+        profile={profile}
+        onEditProfile={() => setView('editProfile')}
+        onSignOut={() => supabase.auth.signOut()}
+      />
+      {overlay && <div className="fixed inset-0 z-20">{overlay}</div>}
+    </>
   )
 }
