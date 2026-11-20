@@ -1,5 +1,4 @@
 import type { Server } from '../types'
-import SoundToggle from './SoundToggle'
 
 type Props = {
   servers: Server[]
@@ -71,10 +70,6 @@ export default function ServerRail({ servers, activeId, homeActive, dmUnread, on
       >
         +
       </button>
-
-      <div className="mt-auto pt-2">
-        <SoundToggle />
-      </div>
     </nav>
   )
 }
