@@ -1,14 +1,20 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { Member } from '../types'
 import { colorFor } from '../colors'
+import { roleLabel, roleStyle } from '../roles'
 
 type Props = {
   member: Member
-  online: boolean
+  online?: boolean // leave out to hide the status
   onClose: () => void
+  onMessage?: () => Promise<string | null>
 }
 
-export default function ProfileCard({ member, online, onClose }: Props) {
+export default function ProfileCard({ member, online, onClose, onMessage }: Props) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const known = online !== undefined
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -16,6 +22,15 @@ export default function ProfileCard({ member, online, onClose }: Props) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
+
+  async function message() {
+    if (!onMessage) return
+    setError('')
+    setBusy(true)
+    const err = await onMessage()
+    setBusy(false)
+    if (err) setError(err)
+  }
 
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -27,7 +42,7 @@ export default function ProfileCard({ member, online, onClose }: Props) {
         <button
           onClick={onClose}
           title="Close"
-          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 hover:bg-black/60"
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 hover:bg-black/60"
         >
           ✕
         </button>
@@ -39,21 +54,25 @@ export default function ProfileCard({ member, online, onClose }: Props) {
             >
               {member.display_name[0]?.toUpperCase()}
             </div>
-            <span
-              className={`absolute bottom-1 right-1 h-5 w-5 rounded-full border-4 border-[#232428] ${
-                online ? 'bg-green-500' : 'bg-gray-500'
-              }`}
-            />
+            {known && (
+              <span
+                className={`absolute bottom-1 right-1 h-5 w-5 rounded-full border-4 border-[#232428] ${
+                  online ? 'bg-green-500' : 'bg-gray-500'
+                }`}
+              />
+            )}
           </div>
 
-          <div className="rounded-lg bg-[#111214] p-4 space-y-3">
+          <div className="space-y-3 rounded-lg bg-[#111214] p-4">
             <div>
               <div className="text-xl font-bold">
                 {member.display_name}
-                {member.role === 'owner' && <span className="ml-2 text-xs text-amber-400">(owner)</span>}
+                {roleLabel[member.role] && (
+                  <span className={`ml-2 text-xs ${roleStyle[member.role]}`}>({roleLabel[member.role]})</span>
+                )}
               </div>
               <div className="text-sm text-gray-400">@{member.username}</div>
-              <div className="mt-1 text-xs text-gray-400">{online ? 'Online' : 'Offline'}</div>
+              {known && <div className="mt-1 text-xs text-gray-400">{online ? 'Online' : 'Offline'}</div>}
             </div>
 
             <div className="border-t border-white/10 pt-3">
@@ -62,6 +81,19 @@ export default function ProfileCard({ member, online, onClose }: Props) {
                 {member.bio || <span className="text-gray-500">No bio yet.</span>}
               </p>
             </div>
+
+            {onMessage && (
+              <div className="border-t border-white/10 pt-3">
+                <button
+                  onClick={message}
+                  disabled={busy}
+                  className="w-full rounded bg-indigo-500 py-2 font-semibold hover:bg-indigo-600 disabled:opacity-50"
+                >
+                  {busy ? 'Opening...' : 'Message'}
+                </button>
+                {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+              </div>
+            )}
           </div>
         </div>
       </div>
