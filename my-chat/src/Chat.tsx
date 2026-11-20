@@ -5,14 +5,17 @@ import { rank } from './roles'
 import { useVoice } from './useVoice'
 import { useVoicePresence } from './useVoicePresence'
 import { useDms } from './useDms'
+import { useFriends } from './useFriends'
 import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
 import DmSidebar from './components/DmSidebar'
 import ChatArea from './components/ChatArea'
+import FriendsPanel from './components/FriendsPanel'
 import MemberList from './components/MemberList'
 import ServerModal from './components/ServerModal'
 import ChannelModal from './components/ChannelModal'
 import ProfileCard from './components/ProfileCard'
+import ReportModal from './components/ReportModal'
 import ServerSettings from './components/ServerSettings'
 import VoiceBar from './components/VoiceBar'
 import ScreenStage from './components/ScreenStage'
@@ -22,6 +25,10 @@ type Props = {
   onEditProfile: () => void
   onSignOut: () => void
 }
+
+type ReportTarget =
+  | { kind: 'user'; userId: string }
+  | { kind: 'server_message' | 'dm_message'; messageId: number }
 
 export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [servers, setServers] = useState<Server[]>([])
@@ -34,6 +41,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [members, setMembers] = useState<Member[]>([])
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null)
+  const [report, setReport] = useState<ReportTarget | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -43,6 +51,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const inDms = view === 'dms'
   const voice = useVoice()
   const dm = useDms(profile.id, inDms ? dmId : null)
+  const friends = useFriends(profile.id)
+  const homeBadge = dm.unread + friends.incoming.length
 
   const loadServers = useCallback(async (selectServerId?: string, selectChannelId?: string) => {
     const { data, error } = await supabase
@@ -74,6 +84,9 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
 
   const myRole: Role = members.find(m => m.id === profile.id)?.role ?? 'member'
   const myRank = rank[myRole]
+
+  // Messages from people you blocked are hidden for you
+  const visibleMessages = messages.filter(m => !friends.blockedIds.has(m.user_id))
 
   // The open DM conversation, and the two people in it (so names and avatars work in ChatArea)
   const dmConv = dm.dms.find(d => d.conversation_id === dmId) ?? null
@@ -243,6 +256,30 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     return null
   }
 
+  async function blockUser(userId: string): Promise<string | null> {
+    const err = await friends.block(userId)
+    if (err) return err
+    if (dmConv?.other_id === userId) setDmId(null)
+    setSelectedMemberId(null)
+    await dm.reload()
+    return null
+  }
+
+  async function unblockUser(userId: string): Promise<string | null> {
+    const err = await friends.unblock(userId)
+    if (!err) await dm.reload()
+    return err
+  }
+
+  async function submitReport(reason: string): Promise<string | null> {
+    if (!report) return 'Nothing to report.'
+    const { error } =
+      report.kind === 'user'
+        ? await supabase.rpc('report_user', { target: report.userId, why: reason })
+        : await supabase.rpc('report_message', { msg_kind: report.kind, mid: report.messageId, why: reason })
+    return error ? error.message : null
+  }
+
   async function refresh() {
     await loadServers()
     if (activeServerId) await loadMembers(activeServerId)
@@ -300,7 +337,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           servers={servers}
           activeId={inDms ? null : server?.id ?? null}
           homeActive={inDms}
-          dmUnread={dm.unread}
+          dmUnread={homeBadge}
           onHome={() => setView('dms')}
           onSelect={selectServer}
           onAdd={() => {
@@ -311,12 +348,18 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
         {inDms ? (
           <DmSidebar
             dms={dm.dms}
-            activeId={dmId}
+            activeId={dmConv?.conversation_id ?? null}
+            friendsActive={!dmConv}
+            pendingCount={friends.incoming.length}
             profile={profile}
             voice={voice}
             voiceLabel={voiceLabel}
             onSelect={id => {
               setDmId(id)
+              setNavOpen(false)
+            }}
+            onShowFriends={() => {
+              setDmId(null)
               setNavOpen(false)
             }}
             onStart={startDm}
@@ -387,30 +430,28 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
               myRank={1}
               onSend={dm.send}
               onDelete={dm.remove}
+              onReport={id => setReport({ kind: 'dm_message', messageId: id })}
               onSelectMember={setSelectedMemberId}
               onOpenNav={() => setNavOpen(true)}
               onOpenMembers={() => {}}
               hideMembers
-              navBadge={dm.unread}
+              navBadge={homeBadge}
             />
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 px-2 font-semibold md:px-4">
-                <button
-                  onClick={() => setNavOpen(true)}
-                  title="Menu"
-                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 md:hidden"
-                >
-                  ☰
-                  {dm.unread > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />}
-                </button>
-                <span>Direct messages</span>
-              </header>
-              <div className="flex flex-1 items-center justify-center p-6 text-center text-gray-400">
-                Pick a conversation from the list, or search for someone to start a new one. You can message people
-                you share a server with.
-              </div>
-            </div>
+            <FriendsPanel
+              friends={friends.friends}
+              incoming={friends.incoming}
+              outgoing={friends.outgoing}
+              blocks={friends.blocks}
+              onAdd={friends.addByUsername}
+              onAccept={friends.accept}
+              onRemove={friends.remove}
+              onMessage={startDm}
+              onBlock={blockUser}
+              onUnblock={unblockUser}
+              onOpenNav={() => setNavOpen(true)}
+              navBadge={homeBadge}
+            />
           )
         ) : server && channel ? (
           <ChatArea
@@ -418,16 +459,17 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
             resetKey={channel.id}
             title={`# ${channel.name}`}
             placeholder={`Message #${channel.name}`}
-            messages={messages}
+            messages={visibleMessages}
             members={members}
             myId={profile.id}
             myRank={myRank}
             onSend={sendMessage}
             onDelete={deleteMessage}
+            onReport={id => setReport({ kind: 'server_message', messageId: id })}
             onSelectMember={setSelectedMemberId}
             onOpenNav={() => setNavOpen(true)}
             onOpenMembers={() => setMembersOpen(true)}
-            navBadge={dm.unread}
+            navBadge={homeBadge}
           />
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">
@@ -441,7 +483,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
                 Create or join
               </button>
               <button onClick={() => setView('dms')} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
-                Direct messages{dm.unread > 0 ? ` (${dm.unread})` : ''}
+                Friends and messages{homeBadge > 0 ? ` (${homeBadge})` : ''}
               </button>
               <button onClick={onSignOut} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
                 Sign out
@@ -473,8 +515,26 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
         <ProfileCard
           member={selectedMember}
           online={inDms ? undefined : onlineIds.has(selectedMember.id)}
+          friendState={friends.stateWith(selectedMember.id)}
+          blocked={friends.blockedIds.has(selectedMember.id)}
           onClose={() => setSelectedMemberId(null)}
           onMessage={selectedMember.id !== profile.id ? () => startDm(selectedMember.id) : undefined}
+          onAddFriend={selectedMember.id !== profile.id ? () => friends.addById(selectedMember.id) : undefined}
+          onBlock={selectedMember.id !== profile.id ? () => blockUser(selectedMember.id) : undefined}
+          onUnblock={selectedMember.id !== profile.id ? () => unblockUser(selectedMember.id) : undefined}
+          onReport={
+            selectedMember.id !== profile.id
+              ? () => setReport({ kind: 'user', userId: selectedMember.id })
+              : undefined
+          }
+        />
+      )}
+
+      {report && (
+        <ReportModal
+          title={report.kind === 'user' ? 'Report this user' : 'Report this message'}
+          onSubmit={submitReport}
+          onClose={() => setReport(null)}
         />
       )}
 

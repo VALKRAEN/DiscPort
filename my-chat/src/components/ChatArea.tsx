@@ -13,11 +13,12 @@ type Props = {
   myRank: number
   onSend: (text: string) => Promise<string | null>
   onDelete: (id: number) => Promise<string | null>
+  onReport?: (messageId: number) => void
   onSelectMember: (id: string) => void
   onOpenNav: () => void
   onOpenMembers: () => void
   hideMembers?: boolean
-  navBadge?: number // unread DMs, shown on the menu button on phones
+  navBadge?: number // unread DMs and requests, shown on the menu button on phones
 }
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000
@@ -50,6 +51,7 @@ export default function ChatArea({
   myRank,
   onSend,
   onDelete,
+  onReport,
   onSelectMember,
   onOpenNav,
   onOpenMembers,
@@ -97,6 +99,9 @@ export default function ChatArea({
     if (err) setError(err)
   }
 
+  const actionBtn =
+    'rounded bg-[#2b2d31] px-3 py-1.5 text-sm shadow md:px-2 md:py-0.5 md:text-xs'
+
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 px-2 font-semibold md:px-4">
@@ -135,21 +140,39 @@ export default function ChatArea({
           const name = member?.display_name ?? 'Unknown user'
           const authorRank = member ? rank[member.role] : 0
           const canDelete = m.user_id === myId || (myRank >= 2 && myRank > authorRank)
+          const canReport = !!onReport && m.user_id !== myId
           const selected = selectedId === m.id
 
-          const deleteButton = canDelete && (
-            <button
-              onClick={e => {
-                e.stopPropagation()
-                remove(m.id)
-              }}
-              title="Delete message"
-              className={`absolute right-2 top-0 rounded bg-[#2b2d31] px-3 py-1.5 text-sm text-red-400 shadow hover:bg-red-500 hover:text-white md:right-4 md:px-2 md:py-0.5 md:text-xs ${
-                selected ? 'block' : 'hidden group-hover:block'
-              }`}
+          const deleteButton = (canDelete || canReport) && (
+            <div
+              className={`absolute right-2 top-0 gap-1 md:right-4 ${selected ? 'flex' : 'hidden group-hover:flex'}`}
             >
-              Delete
-            </button>
+              {canReport && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    setSelectedId(null)
+                    onReport?.(m.id)
+                  }}
+                  title="Report message"
+                  className={`${actionBtn} text-gray-300 hover:bg-white/20`}
+                >
+                  Report
+                </button>
+              )}
+              {canDelete && (
+                <button
+                  onClick={e => {
+                    e.stopPropagation()
+                    remove(m.id)
+                  }}
+                  title="Delete message"
+                  className={`${actionBtn} text-red-400 hover:bg-red-500 hover:text-white`}
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           )
 
           return (

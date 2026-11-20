@@ -102,7 +102,7 @@ export function useDms(myId: string, activeId: string | null) {
         .single()
       if (error) {
         return error.code === '42501'
-          ? 'You can no longer message this person. You need to share a server with them.'
+            ? "You can't message this person right now."
           : error.message
       }
       const m = data as DmMessage
@@ -134,5 +134,5 @@ export function useDms(myId: string, activeId: string | null) {
     [reload]
   )
 
-  return { dms, messages, unread: dms.filter(d => d.unread).length, send, remove, start }
+    return { dms, messages, unread: dms.filter(d => d.unread).length, send, remove, start, reload }
 }

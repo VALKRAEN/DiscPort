@@ -1,19 +1,41 @@
 import { useEffect, useState } from 'react'
 import type { Member } from '../types'
+import type { FriendState } from '../useFriends'
 import { colorFor } from '../colors'
 import { roleLabel, roleStyle } from '../roles'
+
+type Act = () => Promise<string | null>
 
 type Props = {
   member: Member
   online?: boolean // leave out to hide the status
+  friendState?: FriendState
+  blocked?: boolean
   onClose: () => void
-  onMessage?: () => Promise<string | null>
+  onMessage?: Act
+  onAddFriend?: Act
+  onBlock?: Act
+  onUnblock?: Act
+  onReport?: () => void
 }
 
-export default function ProfileCard({ member, online, onClose, onMessage }: Props) {
+export default function ProfileCard({
+  member,
+  online,
+  friendState = 'none',
+  blocked = false,
+  onClose,
+  onMessage,
+  onAddFriend,
+  onBlock,
+  onUnblock,
+  onReport,
+}: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const known = online !== undefined
+  const hasActions = onMessage || onAddFriend || onBlock || onUnblock || onReport
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -23,14 +45,18 @@ export default function ProfileCard({ member, online, onClose, onMessage }: Prop
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  async function message() {
-    if (!onMessage) return
+  async function act(fn: Act | undefined, ok = '') {
+    if (!fn) return
     setError('')
+    setInfo('')
     setBusy(true)
-    const err = await onMessage()
+    const err = await fn()
     setBusy(false)
     if (err) setError(err)
+    else if (ok) setInfo(ok)
   }
+
+  const small = 'flex-1 rounded py-2 text-sm disabled:opacity-50'
 
   return (
     <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
@@ -82,16 +108,76 @@ export default function ProfileCard({ member, online, onClose, onMessage }: Prop
               </p>
             </div>
 
-            {onMessage && (
-              <div className="border-t border-white/10 pt-3">
-                <button
-                  onClick={message}
-                  disabled={busy}
-                  className="w-full rounded bg-indigo-500 py-2 font-semibold hover:bg-indigo-600 disabled:opacity-50"
-                >
-                  {busy ? 'Opening...' : 'Message'}
-                </button>
-                {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+            {hasActions && (
+              <div className="space-y-2 border-t border-white/10 pt-3">
+                {blocked ? (
+                  onUnblock && (
+                    <button
+                      disabled={busy}
+                      onClick={() => act(onUnblock, 'Unblocked.')}
+                      className={`${small} w-full bg-white/10 hover:bg-white/20`}
+                    >
+                      Unblock
+                    </button>
+                  )
+                ) : (
+                  <>
+                    {onMessage && (
+                      <button
+                        disabled={busy}
+                        onClick={() => act(onMessage)}
+                        className="w-full rounded bg-indigo-500 py-2 font-semibold hover:bg-indigo-600 disabled:opacity-50"
+                      >
+                        Message
+                      </button>
+                    )}
+                    {onAddFriend && (friendState === 'none' || friendState === 'incoming') && (
+                      <button
+                        disabled={busy}
+                        onClick={() =>
+                          act(
+                            onAddFriend,
+                            friendState === 'incoming' ? 'You are now friends.' : 'Friend request sent.'
+                          )
+                        }
+                        className="w-full rounded bg-white/10 py-2 text-sm hover:bg-white/20 disabled:opacity-50"
+                      >
+                        {friendState === 'incoming' ? 'Accept friend request' : 'Add friend'}
+                      </button>
+                    )}
+                    {friendState === 'friend' && <p className="text-center text-sm text-green-400">✓ You are friends</p>}
+                    {friendState === 'outgoing' && (
+                      <p className="text-center text-sm text-gray-400">Friend request sent</p>
+                    )}
+                  </>
+                )}
+
+                <div className="flex gap-2">
+                  {onBlock && !blocked && (
+                    <button
+                      disabled={busy}
+                      onClick={() => {
+                        if (window.confirm(`Block ${member.display_name}? They won't be able to message you.`))
+                          act(onBlock)
+                      }}
+                      className={`${small} bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white`}
+                    >
+                      Block
+                    </button>
+                  )}
+                  {onReport && (
+                    <button
+                      disabled={busy}
+                      onClick={onReport}
+                      className={`${small} bg-white/10 text-gray-300 hover:bg-white/20`}
+                    >
+                      Report
+                    </button>
+                  )}
+                </div>
+
+                {error && <p className="text-sm text-red-400">{error}</p>}
+                {info && <p className="text-sm text-green-400">{info}</p>}
               </div>
             )}
           </div>

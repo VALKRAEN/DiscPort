@@ -10,10 +10,13 @@ type Person = { id: string; username: string; display_name: string }
 type Props = {
   dms: DmSummary[]
   activeId: string | null
+  friendsActive: boolean
+  pendingCount: number
   profile: Profile
   voice: VoiceApi
   voiceLabel: { channel: string; server: string; here: boolean } | null
   onSelect: (id: string) => void
+  onShowFriends: () => void
   onStart: (userId: string) => Promise<string | null>
   onGoToVoice: () => void
   onEditProfile: () => void
@@ -23,10 +26,13 @@ type Props = {
 export default function DmSidebar({
   dms,
   activeId,
+  friendsActive,
+  pendingCount,
   profile,
   voice,
   voiceLabel,
   onSelect,
+  onShowFriends,
   onStart,
   onGoToVoice,
   onEditProfile,
@@ -93,7 +99,7 @@ export default function DmSidebar({
             <div className="px-2 pb-1 text-xs font-semibold uppercase text-gray-400">People</div>
             {results.length === 0 && (
               <p className="px-2 py-2 text-sm text-gray-400">
-                No one found. You can only message people you share a server with.
+                No one found. This searches people you share a server with. Use Friends to add anyone by username.
               </p>
             )}
             {results.map(p => (
@@ -116,10 +122,23 @@ export default function DmSidebar({
           </>
         ) : (
           <>
+            <button
+              onClick={onShowFriends}
+              className={`mb-2 flex w-full items-center gap-3 rounded px-2 py-2 text-left ${
+                friendsActive ? 'bg-white/15' : 'hover:bg-white/10'
+              }`}
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center text-xl">👥</span>
+              <span className="flex-1 text-sm font-semibold">Friends</span>
+              {pendingCount > 0 && (
+                <span className="rounded-full bg-red-500 px-2 text-xs font-bold">{pendingCount}</span>
+              )}
+            </button>
+
             <div className="px-2 pb-1 text-xs font-semibold uppercase text-gray-400">Direct messages</div>
             {dms.length === 0 && (
               <p className="px-2 py-2 text-sm text-gray-400">
-                No conversations yet. Search for someone above, or open a profile in a server and press Message.
+                No conversations yet. Search for someone above, or message a friend.
               </p>
             )}
             {dms.map(d => (
