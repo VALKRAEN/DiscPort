@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import Modal from './Modal'
 
 const colors = [
   'bg-indigo-500',
@@ -40,60 +41,78 @@ export default function ServerModal({ onClose, onDone }: Props) {
     onDone(result.data as string)
   }
 
+  const label = 'mb-2 block text-xs font-bold uppercase tracking-wide text-gray-300'
+  const input = 'w-full rounded-md bg-[#1e1f22] px-3 py-3 text-base outline-none placeholder:text-gray-500'
+
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-sm bg-[#313338] text-gray-100 rounded-lg p-6 space-y-4">
-        <div className="flex gap-2">
-          {(['create', 'join'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => {
-                setTab(t)
-                setError('')
-              }}
-              className={`flex-1 rounded py-2 text-sm font-semibold ${
-                tab === t ? 'bg-indigo-500' : 'bg-white/10 hover:bg-white/20'
-              }`}
-            >
-              {t === 'create' ? 'Create a server' : 'Join a server'}
-            </button>
-          ))}
-        </div>
-
-        {tab === 'create' ? (
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()}
-            placeholder="Server name"
-            maxLength={50}
-            className="w-full rounded bg-[#1e1f22] px-3 py-2 outline-none"
-          />
-        ) : (
-          <input
-            value={code}
-            onChange={e => setCode(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && submit()}
-            placeholder="Invite code"
-            className="w-full rounded bg-[#1e1f22] px-3 py-2 outline-none"
-          />
-        )}
-
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 rounded bg-white/10 hover:bg-white/20 py-2">
+    <Modal
+      title={tab === 'create' ? 'Create your server' : 'Join a server'}
+      subtitle={
+        tab === 'create'
+          ? 'Your server is where you and your friends hang out. Make yours and start talking.'
+          : 'Enter an invite code to join an existing server.'
+      }
+      onClose={onClose}
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-sm hover:underline">
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={busy}
-            className="flex-1 rounded bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 py-2 font-semibold"
+            className="rounded-md bg-indigo-500 px-6 py-2.5 font-medium hover:bg-indigo-600 disabled:opacity-50"
           >
-            {busy ? 'Please wait...' : tab === 'create' ? 'Create' : 'Join'}
+            {busy ? 'Please wait...' : tab === 'create' ? 'Create server' : 'Join server'}
           </button>
-        </div>
+        </>
+      }
+    >
+      <div className="mb-5 flex rounded-lg bg-[#1e1f22] p-1">
+        {(['create', 'join'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => {
+              setTab(t)
+              setError('')
+            }}
+            className={`flex-1 rounded-md py-2 text-sm font-semibold ${
+              tab === t ? 'bg-[#404249] text-white' : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            {t === 'create' ? 'Create' : 'Join'}
+          </button>
+        ))}
       </div>
-    </div>
+
+      {tab === 'create' ? (
+        <label>
+          <span className={label}>Server name</span>
+          <input
+            autoFocus
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+            placeholder="My awesome server"
+            maxLength={50}
+            className={input}
+          />
+        </label>
+      ) : (
+        <label>
+          <span className={label}>Invite code</span>
+          <input
+            autoFocus
+            value={code}
+            onChange={e => setCode(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+            placeholder="a1b2c3d4"
+            className={input}
+          />
+        </label>
+      )}
+
+      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+    </Modal>
   )
 }

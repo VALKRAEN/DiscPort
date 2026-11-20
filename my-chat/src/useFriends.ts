@@ -24,6 +24,7 @@ type Result = PromiseLike<{ error: { message: string } | null }>
 export function useFriends(myId: string) {
   const [rows, setRows] = useState<FriendRow[]>([])
   const [blocks, setBlocks] = useState<BlockedUser[]>([])
+  const [loaded, setLoaded] = useState(false)
   const knownIds = useRef<Set<number>>(new Set())
 
   const reload = useCallback(async () => {
@@ -34,6 +35,7 @@ export function useFriends(myId: string) {
       const list = (f.data ?? []) as FriendRow[]
       knownIds.current = new Set(list.map(r => r.friendship_id))
       setRows(list)
+      setLoaded(true)
     }
     if (b.error) console.error(b.error)
     else setBlocks((b.data ?? []) as BlockedUser[])
@@ -81,6 +83,7 @@ export function useFriends(myId: string) {
     outgoing,
     blocks,
     blockedIds,
+    loaded,
     stateWith: (userId: string): FriendState => rows.find(r => r.other_id === userId)?.direction ?? 'none',
     addByUsername: (username: string) => run(supabase.rpc('send_friend_request_by_username', { uname: username })),
     addById: (userId: string) => run(supabase.rpc('send_friend_request', { target: userId })),

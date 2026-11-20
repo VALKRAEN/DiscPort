@@ -1,1 +1,42 @@
 @import "tailwindcss";
+
+html {
+  font-size: 16px;
+}
+
+body {
+  margin: 0;
+  background: #313338;
+  color: #dbdee1;
+  font-family: "gg sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tailwind resets buttons to the arrow cursor, so put the hand back */
+button:not(:disabled),
+[role="button"] {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(88, 101, 242, 0.5);
+}
+
+/* Slim dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1a1b1e transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1a1b1e;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

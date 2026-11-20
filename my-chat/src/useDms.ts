@@ -9,6 +9,7 @@ import type { DmMessage, DmSummary } from './types'
  */
 export function useDms(myId: string, activeId: string | null) {
   const [dms, setDms] = useState<DmSummary[]>([])
+  const [loaded, setLoaded] = useState(false)
   const [messages, setMessages] = useState<DmMessage[]>([])
   const activeRef = useRef<string | null>(activeId)
   activeRef.current = activeId
@@ -20,6 +21,7 @@ export function useDms(myId: string, activeId: string | null) {
       return
     }
     setDms((data ?? []) as DmSummary[])
+    setLoaded(true)
   }, [])
 
   const markRead = useCallback(
@@ -132,5 +134,5 @@ export function useDms(myId: string, activeId: string | null) {
     [reload]
   )
 
-  return { dms, messages, unread: dms.filter(d => d.unread).length, send, remove, start, reload }
+  return { dms, loaded, messages, unread: dms.filter(d => d.unread).length, send, remove, start, reload }
 }

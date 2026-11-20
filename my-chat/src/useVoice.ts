@@ -15,7 +15,8 @@ export type ScreenShare = {
   id: string
   name: string
   isMe: boolean
-  track: LocalVideoTrack | RemoteVideoTrack
+  watching: boolean
+  track: LocalVideoTrack | RemoteVideoTrack | null
 }
 export type VoiceStatus = 'idle' | 'connecting' | 'connected'
 
@@ -31,6 +32,7 @@ export function useVoice() {
   const mutedRef = useRef(false)
   const deafenedRef = useRef(false)
   const mutedBeforeDeafen = useRef(false)
+  const stoppedRef = useRef<Set<string>>(new Set()) // people whose screen you chose to stop watching
 
   const [channelId, setChannelId] = useState<string | null>(null)
   const [status, setStatus] = useState<VoiceStatus>('idle')
@@ -62,22 +64,26 @@ export function useVoice() {
         name: p.name || 'Unknown',
         speaking: p.isSpeaking,
         muted: !p.isMicrophoneEnabled,
-        sharing: p.isScreenShareEnabled,
+        sharing: !!p.getTrackPublication(Track.Source.ScreenShare),
         isMe,
       }))
     )
 
     const shares: ScreenShare[] = []
     for (const { p, isMe } of all) {
-      const track = p.getTrackPublication(Track.Source.ScreenShare)?.track
-      if (track && track.kind === Track.Kind.Video) {
-        shares.push({
-          id: p.identity,
-          name: p.name || 'Unknown',
-          isMe,
-          track: track as LocalVideoTrack | RemoteVideoTrack,
-        })
-      }
+      const pub = p.getTrackPublication(Track.Source.ScreenShare)
+      if (!pub) continue
+      const track =
+        pub.track && pub.track.kind === Track.Kind.Video
+          ? (pub.track as LocalVideoTrack | RemoteVideoTrack)
+          : null
+      shares.push({
+        id: p.identity,
+        name: p.name || 'Unknown',
+        isMe,
+        watching: isMe || !stoppedRef.current.has(p.identity),
+        track,
+      })
     }
     setScreens(shares)
   }, [])
@@ -85,6 +91,7 @@ export function useVoice() {
   const reset = useCallback(() => {
     audioEls.current.forEach(el => el.remove())
     audioEls.current.clear()
+    stoppedRef.current.clear()
     channelRef.current = null
     mutedBeforeDeafen.current = false
     setMuted(false)
@@ -172,8 +179,16 @@ export function useVoice() {
           }
           refresh()
         })
+        .on(RoomEvent.TrackUnpublished, (publication, participant) => {
+          // When a sharer stops, forget that you stopped watching, so their next stream plays
+          if (publication.source === Track.Source.ScreenShare) stoppedRef.current.delete(participant.identity)
+          refresh()
+        })
         .on(RoomEvent.ParticipantConnected, refresh)
-        .on(RoomEvent.ParticipantDisconnected, refresh)
+        .on(RoomEvent.ParticipantDisconnected, participant => {
+          stoppedRef.current.delete(participant.identity)
+          refresh()
+        })
         .on(RoomEvent.ActiveSpeakersChanged, refresh)
         .on(RoomEvent.TrackMuted, refresh)
         .on(RoomEvent.TrackUnmuted, refresh)
@@ -282,6 +297,25 @@ export function useVoice() {
     if (roomRef.current === room) snapshot(room)
   }, [snapshot])
 
+  // Start or stop receiving someone's screen. Stopping really unsubscribes, so it saves bandwidth.
+  const setWatching = useCallback(
+    (id: string, watch: boolean) => {
+      const room = roomRef.current
+      const person = room?.remoteParticipants.get(id)
+      if (!room || !person) return
+      if (watch) stoppedRef.current.delete(id)
+      else stoppedRef.current.add(id)
+      for (const source of [Track.Source.ScreenShare, Track.Source.ScreenShareAudio]) {
+        person.getTrackPublication(source)?.setSubscribed(watch)
+      }
+      snapshot(room)
+    },
+    [snapshot]
+  )
+
+  const watch = useCallback((id: string) => setWatching(id, true), [setWatching])
+  const stopWatching = useCallback((id: string) => setWatching(id, false), [setWatching])
+
   // Disconnect when the component goes away (for example on sign out)
   useEffect(
     () => () => {
@@ -311,6 +345,8 @@ export function useVoice() {
     toggleMute,
     toggleDeafen,
     toggleScreenShare,
+    watch,
+    stopWatching,
   }
 }
 

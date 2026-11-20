@@ -6,6 +6,7 @@ import { useVoice } from './useVoice'
 import { useVoicePresence } from './useVoicePresence'
 import { useDms } from './useDms'
 import { useFriends } from './useFriends'
+import { useSoundEffects } from './useSoundEffects'
 import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
 import DmSidebar from './components/DmSidebar'
@@ -87,6 +88,20 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
 
   // Messages from people you blocked are hidden for you
   const visibleMessages = messages.filter(m => !friends.blockedIds.has(m.user_id))
+  
+  // Sounds: message pings, voice join/leave, mute clicks, friend requests
+  useSoundEffects({
+    myId: profile.id,
+    voice,
+    dms: dm.dms,
+    dmsLoaded: dm.loaded,
+    incomingRequests: friends.incoming,
+    friendsLoaded: friends.loaded,
+    inDms,
+    openDmId: dmId,
+    channelKey: inDms ? null : activeChannelId ?? null,
+    messages: inDms ? [] : visibleMessages,
+  })
 
   // The open DM conversation, and the two people in it (so names and avatars work in ChatArea)
   const dmConv = dm.dms.find(d => d.conversation_id === dmId) ?? null
@@ -422,7 +437,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
             edge="bottom"
           />
         </div>
-        <ScreenStage shares={voice.screens.filter(s => !s.isMe)} />
+                <ScreenStage voice={voice} />
 
         {inDms ? (
           dmConv ? (

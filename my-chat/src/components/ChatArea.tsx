@@ -99,33 +99,36 @@ export default function ChatArea({
     if (err) setError(err)
   }
 
-  const actionBtn = 'rounded bg-[#2b2d31] px-3 py-1.5 text-sm shadow md:px-2 md:py-0.5 md:text-xs'
-
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 px-2 font-semibold md:px-4">
+      <header className="flex h-12 shrink-0 items-center gap-2 px-2 shadow-[0_1px_0_rgba(0,0,0,0.25)] md:px-4">
         <button
           onClick={onOpenNav}
           title="Servers and channels"
-          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 md:hidden"
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-xl hover:bg-white/10 md:hidden"
         >
           ☰
           {navBadge > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />}
         </button>
-        <span className="min-w-0 flex-1 truncate">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-[16px] font-bold text-white">{title}</span>
         {!hideMembers && (
           <button
             onClick={onOpenMembers}
             title="Members"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 lg:hidden"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-xl hover:bg-white/10 lg:hidden"
           >
             👥
           </button>
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto py-4">
-        {messages.length === 0 && <p className="px-4 text-gray-400">No messages yet. Say something!</p>}
+      <div className="flex-1 overflow-y-auto pb-4 pt-2">
+        {messages.length === 0 && (
+          <div className="px-4 pb-4 pt-10">
+            <h2 className="text-3xl font-extrabold text-white">Welcome to {title}</h2>
+            <p className="mt-2 text-gray-400">This is the beginning of {title}. Say something to get things going!</p>
+          </div>
+        )}
 
         {messages.map((m, i) => {
           const prev = messages[i - 1]
@@ -142,9 +145,11 @@ export default function ChatArea({
           const canReport = !!onReport && m.user_id !== myId
           const selected = selectedId === m.id
 
-          const deleteButton = (canDelete || canReport) && (
+          const toolbar = (canDelete || canReport) && (
             <div
-              className={`absolute right-2 top-0 gap-1 md:right-4 ${selected ? 'flex' : 'hidden group-hover:flex'}`}
+              className={`absolute -top-4 right-4 z-[1] overflow-hidden rounded-md border border-white/10 bg-[#313338] shadow-lg ${
+                selected ? 'flex' : 'hidden group-hover:flex'
+              }`}
             >
               {canReport && (
                 <button
@@ -154,7 +159,7 @@ export default function ChatArea({
                     onReport?.(m.id)
                   }}
                   title="Report message"
-                  className={`${actionBtn} text-gray-300 hover:bg-white/20`}
+                  className="px-3 py-2 text-sm text-gray-300 hover:bg-white/10"
                 >
                   Report
                 </button>
@@ -166,7 +171,7 @@ export default function ChatArea({
                     remove(m.id)
                   }}
                   title="Delete message"
-                  className={`${actionBtn} text-red-400 hover:bg-red-500 hover:text-white`}
+                  className="px-3 py-2 text-sm text-red-400 hover:bg-red-500 hover:text-white"
                 >
                   Delete
                 </button>
@@ -177,7 +182,7 @@ export default function ChatArea({
           return (
             <Fragment key={m.id}>
               {newDay && (
-                <div className="flex items-center gap-3 px-4 my-4 text-xs font-semibold text-gray-400">
+                <div className="mx-4 my-5 flex items-center gap-3 text-xs font-semibold text-gray-400">
                   <div className="flex-1 border-t border-white/10" />
                   {dayLabel(m.created_at)}
                   <div className="flex-1 border-t border-white/10" />
@@ -187,23 +192,27 @@ export default function ChatArea({
               {grouped ? (
                 <div
                   onClick={() => tapMessage(m.id)}
-                  className={`group relative flex px-4 py-0.5 hover:bg-black/10 ${selected ? 'bg-black/20' : ''}`}
+                  className={`group relative py-px pl-[72px] pr-4 hover:bg-black/[0.06] ${
+                    selected ? 'bg-black/[0.12]' : ''
+                  }`}
                 >
                   <span
-                    className={`absolute left-4 w-10 pt-1 text-center text-[10px] text-gray-500 ${
+                    className={`absolute left-0 w-[72px] pr-3 text-right text-[11px] leading-[1.375rem] text-gray-500 ${
                       selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                     }`}
                   >
                     {formatTime(m.created_at)}
                   </span>
-                  <p className="ml-[52px] min-w-0 whitespace-pre-wrap break-words">{m.content}</p>
-                  {deleteButton}
+                  <p className="whitespace-pre-wrap break-words text-[16px] leading-[1.375rem] text-gray-200">
+                    {m.content}
+                  </p>
+                  {toolbar}
                 </div>
               ) : (
                 <div
                   onClick={() => tapMessage(m.id)}
-                  className={`group relative flex gap-3 px-4 pt-3 pb-0.5 hover:bg-black/10 ${
-                    selected ? 'bg-black/20' : ''
+                  className={`group relative mt-[17px] flex gap-4 px-4 py-0.5 hover:bg-black/[0.06] ${
+                    selected ? 'bg-black/[0.12]' : ''
                   }`}
                 >
                   <button
@@ -211,26 +220,28 @@ export default function ChatArea({
                       e.stopPropagation()
                       if (member) onSelectMember(member.id)
                     }}
-                    className="shrink-0 rounded-full"
+                    className="mt-0.5 h-10 shrink-0 rounded-full"
                   >
                     <Avatar id={m.user_id} name={name} path={member?.avatar_path} size={40} />
                   </button>
-                  <div className="min-w-0">
-                    <div className="leading-tight">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2 leading-snug">
                       <button
                         onClick={e => {
                           e.stopPropagation()
                           if (member) onSelectMember(member.id)
                         }}
-                        className="font-semibold hover:underline"
+                        className="text-[16px] font-medium text-white hover:underline"
                       >
                         {name}
                       </button>
-                      <span className="ml-2 text-xs text-gray-400">{formatTime(m.created_at)}</span>
+                      <span className="text-xs text-gray-400">{formatTime(m.created_at)}</span>
                     </div>
-                    <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                    <p className="whitespace-pre-wrap break-words text-[16px] leading-[1.375rem] text-gray-200">
+                      {m.content}
+                    </p>
                   </div>
-                  {deleteButton}
+                  {toolbar}
                 </div>
               )}
             </Fragment>
@@ -239,17 +250,28 @@ export default function ChatArea({
         <div ref={bottomRef} />
       </div>
 
-      <div className="shrink-0 p-3 md:p-4">
+      <div className="shrink-0 px-4 pb-6 pt-1">
         {error && <p className="mb-2 text-sm text-red-400">{error}</p>}
-        <input
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && submit()}
-          enterKeyHint="send"
-          maxLength={2000}
-          className="w-full rounded-lg bg-[#383a40] px-4 py-3 outline-none"
-          placeholder={placeholder}
-        />
+        <div className="flex items-center gap-2 rounded-lg bg-[#383a40] px-4">
+          <input
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && submit()}
+            enterKeyHint="send"
+            maxLength={2000}
+            placeholder={placeholder}
+            className="min-w-0 flex-1 bg-transparent py-[13px] text-[16px] text-gray-100 outline-none placeholder:text-gray-400"
+          />
+          {draft.trim() && (
+            <button
+              onClick={submit}
+              title="Send"
+              className="rounded-md px-2 py-1 text-lg text-indigo-300 hover:text-white"
+            >
+              ➤
+            </button>
+          )}
+        </div>
       </div>
     </main>
   )

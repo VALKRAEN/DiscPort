@@ -1,11 +1,17 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import Modal from './Modal'
 
 type Props = {
   serverId: string
   onClose: () => void
   onDone: (channelId: string) => void
 }
+
+const kinds = {
+  text: { icon: '#', title: 'Text', blurb: 'Send messages, links, and more' },
+  voice: { icon: '🔊', title: 'Voice', blurb: 'Hang out with voice and screen sharing' },
+} as const
 
 export default function ChannelModal({ serverId, onClose, onDone }: Props) {
   const [name, setName] = useState('')
@@ -30,26 +36,52 @@ export default function ChannelModal({ serverId, onClose, onDone }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-sm bg-[#313338] text-gray-100 rounded-lg p-6 space-y-4">
-        <h2 className="text-lg font-bold">Create channel</h2>
-
-        <div className="flex gap-2">
-          {(['text', 'voice'] as const).map(k => (
-            <button
-              key={k}
-              onClick={() => setKind(k)}
-              className={`flex-1 rounded py-2 text-sm font-semibold ${
-                kind === k ? 'bg-indigo-500' : 'bg-white/10 hover:bg-white/20'
+    <Modal
+      title="Create channel"
+      onClose={onClose}
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-sm hover:underline">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={busy}
+            className="rounded-md bg-indigo-500 px-6 py-2.5 font-medium hover:bg-indigo-600 disabled:opacity-50"
+          >
+            {busy ? 'Creating...' : 'Create channel'}
+          </button>
+        </>
+      }
+    >
+      <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-300">Channel type</span>
+      <div className="mb-5 space-y-2">
+        {(['text', 'voice'] as const).map(k => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`flex w-full items-center gap-4 rounded-lg px-4 py-3 text-left ${
+              kind === k ? 'bg-white/10 ring-1 ring-indigo-400' : 'bg-[#2b2d31] hover:bg-[#35373c]'
+            }`}
+          >
+            <span className="w-7 text-center text-2xl text-gray-300">{kinds[k].icon}</span>
+            <span className="flex-1 leading-tight">
+              <span className="block font-semibold text-white">{kinds[k].title}</span>
+              <span className="block text-sm text-gray-400">{kinds[k].blurb}</span>
+            </span>
+            <span
+              className={`h-5 w-5 rounded-full border-2 ${
+                kind === k ? 'border-indigo-400 bg-indigo-400' : 'border-gray-500'
               }`}
-            >
-              {k === 'text' ? '# Text' : '🔊 Voice'}
-            </button>
-          ))}
-        </div>
+            />
+          </button>
+        ))}
+      </div>
 
-        <div className="flex items-center rounded bg-[#1e1f22] px-3 py-2">
-          <span className="text-gray-400 mr-2">{kind === 'text' ? '#' : '🔊'}</span>
+      <label>
+        <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-300">Channel name</span>
+        <div className="flex items-center rounded-md bg-[#1e1f22] px-3">
+          <span className="mr-2 text-gray-400">{kinds[kind].icon}</span>
           <input
             autoFocus
             value={name}
@@ -57,23 +89,12 @@ export default function ChannelModal({ serverId, onClose, onDone }: Props) {
             onKeyDown={e => e.key === 'Enter' && submit()}
             placeholder={kind === 'text' ? 'new-channel' : 'hangout'}
             maxLength={30}
-            className="flex-1 bg-transparent outline-none"
+            className="flex-1 bg-transparent py-3 text-base outline-none placeholder:text-gray-500"
           />
         </div>
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        <div className="flex gap-2">
-          <button onClick={onClose} className="flex-1 rounded bg-white/10 hover:bg-white/20 py-2">
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            disabled={busy}
-            className="flex-1 rounded bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 py-2 font-semibold"
-          >
-            {busy ? 'Creating...' : 'Create'}
-          </button>
-        </div>
-      </div>
-    </div>
+      </label>
+
+      {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+    </Modal>
   )
 }
