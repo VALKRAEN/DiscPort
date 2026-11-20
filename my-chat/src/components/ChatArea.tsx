@@ -1,10 +1,12 @@
 import { Fragment, useState, useRef, useEffect } from 'react'
-import type { Channel, Message, Member } from '../types'
+import type { Message, Member } from '../types'
 import { colorFor } from '../colors'
 import { rank } from '../roles'
 
 type Props = {
-  channel: Channel
+  resetKey: string // changes when you open a different channel or conversation
+  title: string
+  placeholder: string
   messages: Message[]
   members: Member[]
   myId: string
@@ -14,6 +16,8 @@ type Props = {
   onSelectMember: (id: string) => void
   onOpenNav: () => void
   onOpenMembers: () => void
+  hideMembers?: boolean
+  navBadge?: number // unread DMs, shown on the menu button on phones
 }
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000
@@ -37,7 +41,9 @@ function dayLabel(iso: string) {
 }
 
 export default function ChatArea({
-  channel,
+  resetKey,
+  title,
+  placeholder,
   messages,
   members,
   myId,
@@ -47,6 +53,8 @@ export default function ChatArea({
   onSelectMember,
   onOpenNav,
   onOpenMembers,
+  hideMembers = false,
+  navBadge = 0,
 }: Props) {
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
@@ -55,11 +63,11 @@ export default function ChatArea({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, channel.id])
+  }, [messages.length, resetKey])
 
   useEffect(() => {
     setSelectedId(null)
-  }, [channel.id])
+  }, [resetKey])
 
   const memberOf = (userId: string) => members.find(m => m.id === userId)
 
@@ -95,18 +103,21 @@ export default function ChatArea({
         <button
           onClick={onOpenNav}
           title="Servers and channels"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 md:hidden"
+          className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 md:hidden"
         >
           ☰
+          {navBadge > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />}
         </button>
-        <span className="min-w-0 flex-1 truncate"># {channel.name}</span>
-        <button
-          onClick={onOpenMembers}
-          title="Members"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 lg:hidden"
-        >
-          👥
-        </button>
+        <span className="min-w-0 flex-1 truncate">{title}</span>
+        {!hideMembers && (
+          <button
+            onClick={onOpenMembers}
+            title="Members"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 lg:hidden"
+          >
+            👥
+          </button>
+        )}
       </header>
 
       <div className="flex-1 overflow-y-auto py-4">
@@ -217,7 +228,7 @@ export default function ChatArea({
           enterKeyHint="send"
           maxLength={2000}
           className="w-full rounded-lg bg-[#383a40] px-4 py-3 outline-none"
-          placeholder={`Message #${channel.name}`}
+          placeholder={placeholder}
         />
       </div>
     </main>

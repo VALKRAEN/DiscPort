@@ -11,3 +11,15 @@ export type Server = { id: string; name: string; color: string; invite_code: str
 export type Profile = { id: string; username: string; display_name: string; bio: string }
 export type Member = { id: string; username: string; display_name: string; bio: string; role: Role }
 export type Ban = { user_id: string; username: string; display_name: string; created_at: string }
+export type DmSummary = {
+  conversation_id: string
+  other_id: string
+  other_username: string
+  other_display_name: string
+  other_bio: string
+  last_content: string | null
+  last_at: string
+  last_user_id: string | null
+  unread: boolean
+}
+export type DmMessage = { id: number; conversation_id: string; user_id: string; content: string; created_at: string }

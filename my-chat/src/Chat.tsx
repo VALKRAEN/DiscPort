@@ -4,8 +4,10 @@ import type { Server, Profile, Message, Member, Role } from './types'
 import { rank } from './roles'
 import { useVoice } from './useVoice'
 import { useVoicePresence } from './useVoicePresence'
+import { useDms } from './useDms'
 import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
+import DmSidebar from './components/DmSidebar'
 import ChatArea from './components/ChatArea'
 import MemberList from './components/MemberList'
 import ServerModal from './components/ServerModal'
@@ -24,8 +26,10 @@ type Props = {
 export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [servers, setServers] = useState<Server[]>([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'servers' | 'dms'>('servers')
   const [serverId, setServerId] = useState<string | null>(null)
   const [channelId, setChannelId] = useState<string | null>(null)
+  const [dmId, setDmId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
@@ -36,7 +40,9 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [navOpen, setNavOpen] = useState(false) // mobile: servers and channels panel
   const [membersOpen, setMembersOpen] = useState(false) // mobile: members panel
 
+  const inDms = view === 'dms'
   const voice = useVoice()
+  const dm = useDms(profile.id, inDms ? dmId : null)
 
   const loadServers = useCallback(async (selectServerId?: string, selectChannelId?: string) => {
     const { data, error } = await supabase
@@ -68,7 +74,28 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
 
   const myRole: Role = members.find(m => m.id === profile.id)?.role ?? 'member'
   const myRank = rank[myRole]
-  const selectedMember = members.find(m => m.id === selectedMemberId) ?? null
+
+  // The open DM conversation, and the two people in it (so names and avatars work in ChatArea)
+  const dmConv = dm.dms.find(d => d.conversation_id === dmId) ?? null
+  const dmMembers: Member[] = dmConv
+    ? [
+        {
+          id: profile.id,
+          username: profile.username,
+          display_name: profile.display_name,
+          bio: profile.bio,
+          role: 'member',
+        },
+        {
+          id: dmConv.other_id,
+          username: dmConv.other_username,
+          display_name: dmConv.other_display_name,
+          bio: dmConv.other_bio,
+          role: 'member',
+        },
+      ]
+    : []
+  const selectedMember = (inDms ? dmMembers : members).find(m => m.id === selectedMemberId) ?? null
 
   // Which server is the call in? It can differ from the server you're viewing
   const voiceServer = voice.channelId
@@ -79,7 +106,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     ? {
         channel: voiceServer.channels.find(c => c.id === voice.channelId)?.name ?? '',
         server: voiceServer.name,
-        here: voiceServer.id === activeServerId,
+        here: !inDms && voiceServer.id === activeServerId,
       }
     : null
 
@@ -192,8 +219,9 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     }
   }, [activeChannelId])
 
-  // Switching servers no longer touches your call
+  // Switching servers never touches your call
   function selectServer(id: string) {
+    setView('servers')
     setServerId(id)
     setChannelId(null)
     setSelectedMemberId(null)
@@ -202,6 +230,17 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   function goToVoice() {
     if (voiceServer) selectServer(voiceServer.id)
     setNavOpen(false)
+  }
+
+  async function startDm(userId: string): Promise<string | null> {
+    const r = await dm.start(userId)
+    if (r.error || !r.id) return r.error ?? 'Could not start the conversation.'
+    setSelectedMemberId(null)
+    setMembersOpen(false)
+    setView('dms')
+    setDmId(r.id)
+    setNavOpen(false)
+    return null
   }
 
   async function refresh() {
@@ -251,7 +290,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
         <div className="fixed inset-0 z-[5] bg-black/60 lg:hidden" onClick={() => setMembersOpen(false)} />
       )}
 
-      {/* Servers and channels: a slide-out panel on phones, a fixed column on larger screens */}
+      {/* Servers, plus channels or DMs: a slide-out panel on phones, fixed columns on larger screens */}
       <div
         className={`fixed inset-y-0 left-0 z-[6] flex transition-transform duration-200 md:static md:z-auto md:translate-x-0 ${
           navOpen ? 'translate-x-0' : '-translate-x-full'
@@ -259,111 +298,183 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
       >
         <ServerRail
           servers={servers}
-          activeId={server?.id ?? null}
+          activeId={inDms ? null : server?.id ?? null}
+          homeActive={inDms}
+          dmUnread={dm.unread}
+          onHome={() => setView('dms')}
           onSelect={selectServer}
           onAdd={() => {
             setNavOpen(false)
             setShowModal(true)
           }}
         />
-        {server && channel && (
-          <ChannelSidebar
-            server={server}
-            activeChannelId={channel.id}
-            onSelect={id => {
-              setChannelId(id)
-              setNavOpen(false)
-            }}
+        {inDms ? (
+          <DmSidebar
+            dms={dm.dms}
+            activeId={dmId}
             profile={profile}
-            myRole={myRole}
             voice={voice}
-            voiceOccupants={voiceOccupants}
             voiceLabel={voiceLabel}
+            onSelect={id => {
+              setDmId(id)
+              setNavOpen(false)
+            }}
+            onStart={startDm}
             onGoToVoice={goToVoice}
-            onAddChannel={() => {
-              setNavOpen(false)
-              setShowChannelModal(true)
-            }}
-            onOpenSettings={() => {
-              setNavOpen(false)
-              setShowSettings(true)
-            }}
             onEditProfile={() => {
               setNavOpen(false)
               onEditProfile()
             }}
             onSignOut={onSignOut}
           />
+        ) : (
+          server &&
+          channel && (
+            <ChannelSidebar
+              server={server}
+              activeChannelId={channel.id}
+              onSelect={id => {
+                setChannelId(id)
+                setNavOpen(false)
+              }}
+              profile={profile}
+              myRole={myRole}
+              voice={voice}
+              voiceOccupants={voiceOccupants}
+              voiceLabel={voiceLabel}
+              onGoToVoice={goToVoice}
+              onAddChannel={() => {
+                setNavOpen(false)
+                setShowChannelModal(true)
+              }}
+              onOpenSettings={() => {
+                setNavOpen(false)
+                setShowSettings(true)
+              }}
+              onEditProfile={() => {
+                setNavOpen(false)
+                onEditProfile()
+              }}
+              onSignOut={onSignOut}
+            />
+          )
         )}
       </div>
 
-      {server && channel ? (
-        <>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {/* On phones the voice controls live here, so they are visible without opening the panel */}
-            <div className="md:hidden">
-              <VoiceBar
-                voice={voice}
-                channelName={voiceLabel?.channel ?? ''}
-                serverName={voiceLabel && !voiceLabel.here ? voiceLabel.server : undefined}
-                onGoTo={voiceLabel && !voiceLabel.here ? goToVoice : undefined}
-                edge="bottom"
-              />
-            </div>
-            <ScreenStage shares={voice.screens.filter(s => !s.isMe)} />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {/* On phones the voice controls live here, so they are visible without opening the panel */}
+        <div className="md:hidden">
+          <VoiceBar
+            voice={voice}
+            channelName={voiceLabel?.channel ?? ''}
+            serverName={voiceLabel && !voiceLabel.here ? voiceLabel.server : undefined}
+            onGoTo={voiceLabel && !voiceLabel.here ? goToVoice : undefined}
+            edge="bottom"
+          />
+        </div>
+        <ScreenStage shares={voice.screens.filter(s => !s.isMe)} />
+
+        {inDms ? (
+          dmConv ? (
             <ChatArea
-              channel={channel}
-              messages={messages}
-              members={members}
+              key={`dm:${dmConv.conversation_id}`}
+              resetKey={dmConv.conversation_id}
+              title={`@${dmConv.other_display_name}`}
+              placeholder={`Message @${dmConv.other_display_name}`}
+              messages={dm.messages}
+              members={dmMembers}
               myId={profile.id}
-              myRank={myRank}
-              onSend={sendMessage}
-              onDelete={deleteMessage}
+              myRank={1}
+              onSend={dm.send}
+              onDelete={dm.remove}
               onSelectMember={setSelectedMemberId}
               onOpenNav={() => setNavOpen(true)}
-              onOpenMembers={() => setMembersOpen(true)}
+              onOpenMembers={() => {}}
+              hideMembers
+              navBadge={dm.unread}
             />
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col">
+              <header className="flex h-12 shrink-0 items-center gap-1 border-b border-black/20 px-2 font-semibold md:px-4">
+                <button
+                  onClick={() => setNavOpen(true)}
+                  title="Menu"
+                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded text-xl hover:bg-white/10 md:hidden"
+                >
+                  ☰
+                  {dm.unread > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />}
+                </button>
+                <span>Direct messages</span>
+              </header>
+              <div className="flex flex-1 items-center justify-center p-6 text-center text-gray-400">
+                Pick a conversation from the list, or search for someone to start a new one. You can message people
+                you share a server with.
+              </div>
+            </div>
+          )
+        ) : server && channel ? (
+          <ChatArea
+            key="server-chat"
+            resetKey={channel.id}
+            title={`# ${channel.name}`}
+            placeholder={`Message #${channel.name}`}
+            messages={messages}
+            members={members}
+            myId={profile.id}
+            myRank={myRank}
+            onSend={sendMessage}
+            onDelete={deleteMessage}
+            onSelectMember={setSelectedMemberId}
+            onOpenNav={() => setNavOpen(true)}
+            onOpenMembers={() => setMembersOpen(true)}
+            navBadge={dm.unread}
+          />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">
+            <h2 className="text-xl font-semibold">You're not in any servers yet</h2>
+            <p className="text-gray-400">Create one, or join a friend's with an invite code.</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => setShowModal(true)}
+                className="rounded bg-indigo-500 px-4 py-2 font-semibold hover:bg-indigo-600"
+              >
+                Create or join
+              </button>
+              <button onClick={() => setView('dms')} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
+                Direct messages{dm.unread > 0 ? ` (${dm.unread})` : ''}
+              </button>
+              <button onClick={onSignOut} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
+                Sign out
+              </button>
+            </div>
           </div>
+        )}
+      </div>
 
-          {/* Members: a slide-out panel below the large breakpoint, a fixed column above it */}
-          <div
-            className={`fixed inset-y-0 right-0 z-[6] w-72 max-w-[85vw] transition-transform duration-200 lg:static lg:z-auto lg:w-60 lg:max-w-none lg:translate-x-0 ${
-              membersOpen ? 'translate-x-0' : 'translate-x-full'
-            }`}
-          >
-            <MemberList
-              members={members}
-              onlineIds={onlineIds}
-              onSelect={id => {
-                setSelectedMemberId(id)
-                setMembersOpen(false)
-              }}
-            />
-          </div>
-        </>
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4 text-center">
-          <h2 className="text-xl font-semibold">You're not in any servers yet</h2>
-          <p className="text-gray-400">Create one, or join a friend's with an invite code.</p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowModal(true)}
-              className="rounded bg-indigo-500 px-4 py-2 font-semibold hover:bg-indigo-600"
-            >
-              Create or join
-            </button>
-            <button onClick={onSignOut} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
-              Sign out
-            </button>
-          </div>
+      {/* Members: a slide-out panel below the large breakpoint, a fixed column above it */}
+      {!inDms && server && channel && (
+        <div
+          className={`fixed inset-y-0 right-0 z-[6] w-72 max-w-[85vw] transition-transform duration-200 lg:static lg:z-auto lg:w-60 lg:max-w-none lg:translate-x-0 ${
+            membersOpen ? 'translate-x-0' : 'translate-x-full'
+          }`}
+        >
+          <MemberList
+            members={members}
+            onlineIds={onlineIds}
+            onSelect={id => {
+              setSelectedMemberId(id)
+              setMembersOpen(false)
+            }}
+          />
         </div>
       )}
 
       {selectedMember && (
         <ProfileCard
           member={selectedMember}
-          online={onlineIds.has(selectedMember.id)}
+          online={inDms ? undefined : onlineIds.has(selectedMember.id)}
           onClose={() => setSelectedMemberId(null)}
+          onMessage={selectedMember.id !== profile.id ? () => startDm(selectedMember.id) : undefined}
         />
       )}
 
@@ -384,6 +495,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           onClose={() => setShowModal(false)}
           onDone={id => {
             setShowModal(false)
+            setView('servers')
             loadServers(id)
           }}
         />
