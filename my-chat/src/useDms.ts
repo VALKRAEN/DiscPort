@@ -101,9 +101,7 @@ export function useDms(myId: string, activeId: string | null) {
         .select('id, conversation_id, user_id, content, created_at')
         .single()
       if (error) {
-        return error.code === '42501'
-            ? "You can't message this person right now."
-          : error.message
+        return error.code === '42501' ? "You can't message this person right now." : error.message
       }
       const m = data as DmMessage
       setMessages(prev => (prev.some(x => x.id === m.id) ? prev : [...prev, m]))
@@ -134,5 +132,5 @@ export function useDms(myId: string, activeId: string | null) {
     [reload]
   )
 
-    return { dms, messages, unread: dms.filter(d => d.unread).length, send, remove, start, reload }
+  return { dms, messages, unread: dms.filter(d => d.unread).length, send, remove, start, reload }
 }

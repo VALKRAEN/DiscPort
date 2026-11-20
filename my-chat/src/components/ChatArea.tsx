@@ -1,7 +1,7 @@
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Message, Member } from '../types'
-import { colorFor } from '../colors'
 import { rank } from '../roles'
+import Avatar from './Avatar'
 
 type Props = {
   resetKey: string // changes when you open a different channel or conversation
@@ -99,8 +99,7 @@ export default function ChatArea({
     if (err) setError(err)
   }
 
-  const actionBtn =
-    'rounded bg-[#2b2d31] px-3 py-1.5 text-sm shadow md:px-2 md:py-0.5 md:text-xs'
+  const actionBtn = 'rounded bg-[#2b2d31] px-3 py-1.5 text-sm shadow md:px-2 md:py-0.5 md:text-xs'
 
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -212,11 +211,9 @@ export default function ChatArea({
                       e.stopPropagation()
                       if (member) onSelectMember(member.id)
                     }}
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold ${
-                      member ? colorFor(member.id) : 'bg-gray-600'
-                    }`}
+                    className="shrink-0 rounded-full"
                   >
-                    {name[0]?.toUpperCase()}
+                    <Avatar id={m.user_id} name={name} path={member?.avatar_path} size={40} />
                   </button>
                   <div className="min-w-0">
                     <div className="leading-tight">

@@ -1,6 +1,6 @@
 import type { Member } from '../types'
-import { colorFor } from '../colors'
 import { roleLabel, roleStyle } from '../roles'
+import Avatar from './Avatar'
 
 type Props = {
   members: Member[]
@@ -34,11 +34,7 @@ function Group({
           }`}
         >
           <div className="relative shrink-0">
-            <div
-              className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${colorFor(m.id)}`}
-            >
-              {m.display_name[0]?.toUpperCase()}
-            </div>
+            <Avatar id={m.id} name={m.display_name} path={m.avatar_path} size={32} />
             {online && (
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#2b2d31] bg-green-500" />
             )}

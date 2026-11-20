@@ -3,6 +3,7 @@ import type { Member } from '../types'
 import type { FriendState } from '../useFriends'
 import { colorFor } from '../colors'
 import { roleLabel, roleStyle } from '../roles'
+import Avatar from './Avatar'
 
 type Act = () => Promise<string | null>
 
@@ -75,11 +76,13 @@ export default function ProfileCard({
 
         <div className="px-5 pb-5">
           <div className="relative -mt-10 mb-3 w-fit">
-            <div
-              className={`flex h-20 w-20 items-center justify-center rounded-full border-[6px] border-[#232428] text-3xl font-bold ${colorFor(member.id)}`}
-            >
-              {member.display_name[0]?.toUpperCase()}
-            </div>
+            <Avatar
+              id={member.id}
+              name={member.display_name}
+              path={member.avatar_path}
+              size={80}
+              className="border-[6px] border-[#232428]"
+            />
             {known && (
               <span
                 className={`absolute bottom-1 right-1 h-5 w-5 rounded-full border-4 border-[#232428] ${

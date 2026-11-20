@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { BlockedUser, FriendRow } from '../useFriends'
-import { colorFor } from '../colors'
+import Avatar from './Avatar'
 
 type Tab = 'all' | 'pending' | 'add' | 'blocked'
 
@@ -20,14 +20,22 @@ type Props = {
   navBadge: number
 }
 
-function Row({ id, name, username, children }: { id: string; name: string; username: string; children: ReactNode }) {
+function Row({
+  id,
+  name,
+  username,
+  avatar,
+  children,
+}: {
+  id: string
+  name: string
+  username: string
+  avatar?: string | null
+  children: ReactNode
+}) {
   return (
     <div className="flex flex-wrap items-center gap-3 rounded px-2 py-2 hover:bg-white/5">
-      <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full font-bold ${colorFor(id)}`}
-      >
-        {name[0]?.toUpperCase()}
-      </span>
+      <Avatar id={id} name={name} path={avatar} size={40} />
       <div className="min-w-0 flex-1 leading-tight">
         <div className="truncate">{name}</div>
         <div className="truncate text-xs text-gray-400">@{username}</div>
@@ -124,7 +132,13 @@ export default function FriendsPanel({
               </p>
             )}
             {friends.map(f => (
-              <Row key={f.friendship_id} id={f.other_id} name={f.other_display_name} username={f.other_username}>
+              <Row
+                key={f.friendship_id}
+                id={f.other_id}
+                name={f.other_display_name}
+                username={f.other_username}
+                avatar={f.other_avatar_path}
+              >
                 <button disabled={busy} onClick={() => run(() => onMessage(f.other_id))} className={primary}>
                   Message
                 </button>
@@ -164,7 +178,13 @@ export default function FriendsPanel({
               </h3>
             )}
             {incoming.map(f => (
-              <Row key={f.friendship_id} id={f.other_id} name={f.other_display_name} username={f.other_username}>
+              <Row
+                key={f.friendship_id}
+                id={f.other_id}
+                name={f.other_display_name}
+                username={f.other_username}
+                avatar={f.other_avatar_path}
+              >
                 <button disabled={busy} onClick={() => run(() => onAccept(f.friendship_id))} className={primary}>
                   Accept
                 </button>
@@ -186,7 +206,13 @@ export default function FriendsPanel({
               <h3 className="px-2 pt-3 text-xs font-semibold uppercase text-gray-400">Sent - {outgoing.length}</h3>
             )}
             {outgoing.map(f => (
-              <Row key={f.friendship_id} id={f.other_id} name={f.other_display_name} username={f.other_username}>
+              <Row
+                key={f.friendship_id}
+                id={f.other_id}
+                name={f.other_display_name}
+                username={f.other_username}
+                avatar={f.other_avatar_path}
+              >
                 <button disabled={busy} onClick={() => run(() => onRemove(f.friendship_id))} className={neutral}>
                   Cancel
                 </button>
@@ -231,7 +257,7 @@ export default function FriendsPanel({
           <>
             {blocks.length === 0 && <p className="text-sm text-gray-400">You haven't blocked anyone.</p>}
             {blocks.map(b => (
-              <Row key={b.user_id} id={b.user_id} name={b.display_name} username={b.username}>
+              <Row key={b.user_id} id={b.user_id} name={b.display_name} username={b.username} avatar={b.avatar_path}>
                 <button disabled={busy} onClick={() => run(() => onUnblock(b.user_id), 'Unblocked.')} className={neutral}>
                   Unblock
                 </button>

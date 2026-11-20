@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import type { Server, Profile, Role } from '../types'
-import { colorFor } from '../colors'
 import { rank } from '../roles'
 import type { VoiceApi } from '../useVoice'
 import VoiceBar from './VoiceBar'
+import Avatar from './Avatar'
 
 type Props = {
   server: Server
@@ -13,6 +13,7 @@ type Props = {
   myRole: Role
   voice: VoiceApi
   voiceOccupants: Record<string, { id: string; name: string }[]>
+  avatarById: Record<string, string | null>
   voiceLabel: { channel: string; server: string; here: boolean } | null
   onGoToVoice: () => void
   onAddChannel: () => void
@@ -29,6 +30,7 @@ export default function ChannelSidebar({
   myRole,
   voice,
   voiceOccupants,
+  avatarById,
   voiceLabel,
   onGoToVoice,
   onAddChannel,
@@ -115,13 +117,13 @@ export default function ChannelSidebar({
                     {joined && voice.status === 'connected'
                       ? voice.participants.map(p => (
                           <div key={p.id} className="ml-5 flex items-center gap-2 py-0.5 text-sm text-gray-300">
-                            <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${colorFor(
-                                p.id
-                              )} ${p.speaking ? 'ring-2 ring-green-500' : ''}`}
-                            >
-                              {p.name[0]?.toUpperCase()}
-                            </span>
+                            <Avatar
+                              id={p.id}
+                              name={p.name}
+                              path={avatarById[p.id]}
+                              size={24}
+                              className={p.speaking ? 'ring-2 ring-green-500' : ''}
+                            />
                             <span className="truncate">{p.name}</span>
                             {p.sharing && (
                               <span className="rounded bg-red-500 px-1 text-[10px] font-bold text-white">LIVE</span>
@@ -131,13 +133,7 @@ export default function ChannelSidebar({
                         ))
                       : others.map(p => (
                           <div key={p.id} className="ml-5 flex items-center gap-2 py-0.5 text-sm text-gray-400">
-                            <span
-                              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${colorFor(
-                                p.id
-                              )}`}
-                            >
-                              {p.name[0]?.toUpperCase()}
-                            </span>
+                            <Avatar id={p.id} name={p.name} path={avatarById[p.id]} size={24} />
                             <span className="truncate">{p.name}</span>
                           </div>
                         ))}
@@ -158,13 +154,7 @@ export default function ChannelSidebar({
       />
 
       <div className="flex h-[52px] items-center gap-1 bg-[#232428] px-3">
-        <div
-          className={`mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${colorFor(
-            profile.id
-          )}`}
-        >
-          {profile.display_name[0]?.toUpperCase()}
-        </div>
+        <Avatar id={profile.id} name={profile.display_name} path={profile.avatar_path} size={32} className="mr-1" />
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate text-sm font-semibold">{profile.display_name}</div>
           <div className="truncate text-xs text-gray-400">@{profile.username}</div>

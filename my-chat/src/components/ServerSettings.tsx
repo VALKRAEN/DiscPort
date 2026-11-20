@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import type { Ban, Member, Role, Server } from '../types'
 import { rank, roleLabel, roleStyle } from '../roles'
-import { colorFor } from '../colors'
+import Avatar from './Avatar'
 
 type Props = {
   server: Server
@@ -202,11 +202,7 @@ export default function ServerSettings({ server, myRole, members, myId, onClose,
 
                 return (
                   <div key={m.id} className="flex flex-wrap items-center gap-3 rounded px-2 py-2 hover:bg-white/5">
-                    <div
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-bold ${colorFor(m.id)}`}
-                    >
-                      {m.display_name[0]?.toUpperCase()}
-                    </div>
+                    <Avatar id={m.id} name={m.display_name} path={m.avatar_path} size={36} />
                     <div className="min-w-0 flex-1 leading-tight">
                       <div className="truncate text-sm">
                         {m.display_name}
@@ -281,7 +277,9 @@ export default function ServerSettings({ server, myRole, members, myId, onClose,
             <div className="space-y-1">
               {server.channels.map(c => (
                 <div key={c.id} className="flex items-center gap-2 rounded px-2 py-2 hover:bg-white/5">
-                  <span className="flex-1 truncate">{c.kind === 'voice' ? '🔊' : '#'} {c.name}</span>
+                  <span className="flex-1 truncate">
+                    {c.kind === 'voice' ? '🔊' : '#'} {c.name}
+                  </span>
                   <button
                     disabled={busy}
                     onClick={() => {

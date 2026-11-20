@@ -7,10 +7,16 @@ export type FriendRow = {
   other_username: string
   other_display_name: string
   other_bio: string
+  other_avatar_path: string | null
   status: 'pending' | 'accepted'
   direction: 'friend' | 'incoming' | 'outgoing'
 }
-export type BlockedUser = { user_id: string; username: string; display_name: string }
+export type BlockedUser = {
+  user_id: string
+  username: string
+  display_name: string
+  avatar_path: string | null
+}
 export type FriendState = 'none' | 'friend' | 'incoming' | 'outgoing'
 
 type Result = PromiseLike<{ error: { message: string } | null }>

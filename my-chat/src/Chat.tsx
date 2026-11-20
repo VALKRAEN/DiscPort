@@ -97,6 +97,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           username: profile.username,
           display_name: profile.display_name,
           bio: profile.bio,
+          avatar_path: profile.avatar_path,
           role: 'member',
         },
         {
@@ -104,6 +105,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           username: dmConv.other_username,
           display_name: dmConv.other_display_name,
           bio: dmConv.other_bio,
+          avatar_path: dmConv.other_avatar_path,
           role: 'member',
         },
       ]
@@ -133,10 +135,14 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     }))
   }
 
+  // id -> picture, for places that only know a user id (like voice participants)
+  const avatarById: Record<string, string | null> = { [profile.id]: profile.avatar_path }
+  for (const m of members) avatarById[m.id] = m.avatar_path
+
   const loadMembers = useCallback(async (sid: string) => {
     const { data, error } = await supabase
       .from('server_members')
-      .select('role, profiles(id, username, display_name, bio)')
+      .select('role, profiles(id, username, display_name, bio, avatar_path)')
       .eq('server_id', sid)
     if (error) console.error(error)
     if (activeServerRef.current !== sid) return
@@ -154,7 +160,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
       return
     }
     loadMembers(activeServerId)
-  }, [activeServerId, loadMembers, profile.display_name, profile.username, profile.bio])
+  }, [activeServerId, loadMembers, profile.display_name, profile.username, profile.bio, profile.avatar_path])
 
   // Presence: who is online in the server you're viewing
   useEffect(() => {
@@ -384,6 +390,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
               myRole={myRole}
               voice={voice}
               voiceOccupants={voiceOccupants}
+              avatarById={avatarById}
               voiceLabel={voiceLabel}
               onGoToVoice={goToVoice}
               onAddChannel={() => {

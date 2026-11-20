@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import type { DmSummary, Profile } from '../types'
-import { colorFor } from '../colors'
 import type { VoiceApi } from '../useVoice'
 import VoiceBar from './VoiceBar'
+import Avatar from './Avatar'
 
-type Person = { id: string; username: string; display_name: string }
+type Person = { id: string; username: string; display_name: string; avatar_path: string | null }
 
 type Props = {
   dms: DmSummary[]
@@ -53,7 +53,7 @@ export default function DmSidebar({
     const t = setTimeout(async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, display_name')
+        .select('id, username, display_name, avatar_path')
         .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
         .neq('id', profile.id)
         .limit(8)
@@ -108,11 +108,7 @@ export default function DmSidebar({
                 onClick={() => startWith(p.id)}
                 className="flex w-full items-center gap-3 rounded px-2 py-2 text-left hover:bg-white/10"
               >
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-bold ${colorFor(p.id)}`}
-                >
-                  {p.display_name[0]?.toUpperCase()}
-                </span>
+                <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size={36} />
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-sm">{p.display_name}</span>
                   <span className="block truncate text-xs text-gray-400">@{p.username}</span>
@@ -149,13 +145,7 @@ export default function DmSidebar({
                   d.conversation_id === activeId ? 'bg-white/15' : 'hover:bg-white/10'
                 }`}
               >
-                <span
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-bold ${colorFor(
-                    d.other_id
-                  )}`}
-                >
-                  {d.other_display_name[0]?.toUpperCase()}
-                </span>
+                <Avatar id={d.other_id} name={d.other_display_name} path={d.other_avatar_path} size={36} />
                 <span className="min-w-0 flex-1 leading-tight">
                   <span className={`block truncate text-sm ${d.unread ? 'font-bold text-white' : 'text-gray-300'}`}>
                     {d.other_display_name}
@@ -177,13 +167,7 @@ export default function DmSidebar({
       />
 
       <div className="flex h-[52px] items-center gap-1 bg-[#232428] px-3">
-        <div
-          className={`mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${colorFor(
-            profile.id
-          )}`}
-        >
-          {profile.display_name[0]?.toUpperCase()}
-        </div>
+        <Avatar id={profile.id} name={profile.display_name} path={profile.avatar_path} size={32} className="mr-1" />
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate text-sm font-semibold">{profile.display_name}</div>
           <div className="truncate text-xs text-gray-400">@{profile.username}</div>
