@@ -1,10 +1,12 @@
 import { Fragment, useState, useRef, useEffect } from 'react'
 import type { Message, Member } from '../types'
-import { rank } from '../roles'
+import { rank, roleStyle } from '../roles'
+import { useSettings } from '../settings'
 import Avatar from './Avatar'
 
 type Props = {
   resetKey: string // changes when you open a different channel or conversation
+  icon: string // "#" for channels, "@" for direct messages
   title: string
   placeholder: string
   messages: Message[]
@@ -16,15 +18,26 @@ type Props = {
   onReport?: (messageId: number) => void
   onSelectMember: (id: string) => void
   onOpenNav: () => void
-  onOpenMembers: () => void
-  hideMembers?: boolean
+  onToggleMembers?: () => void // leave out to hide the button (direct messages)
+  membersShown?: boolean
   navBadge?: number // unread DMs and requests, shown on the menu button on phones
 }
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000
+const textStyle = { fontSize: 'var(--chat-font, 16px)' }
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+function stamp(iso: string) {
+  const d = new Date(iso)
+  const today = new Date()
+  const yesterday = new Date()
+  yesterday.setDate(today.getDate() - 1)
+  if (d.toDateString() === today.toDateString()) return `Today at ${formatTime(iso)}`
+  if (d.toDateString() === yesterday.toDateString()) return `Yesterday at ${formatTime(iso)}`
+  return `${d.toLocaleDateString()} ${formatTime(iso)}`
 }
 
 function dayKey(iso: string) {
@@ -43,6 +56,7 @@ function dayLabel(iso: string) {
 
 export default function ChatArea({
   resetKey,
+  icon,
   title,
   placeholder,
   messages,
@@ -54,10 +68,12 @@ export default function ChatArea({
   onReport,
   onSelectMember,
   onOpenNav,
-  onOpenMembers,
-  hideMembers = false,
+  onToggleMembers,
+  membersShown = true,
   navBadge = 0,
 }: Props) {
+  const settings = useSettings()
+  const compact = settings.messageStyle === 'compact'
   const [draft, setDraft] = useState('')
   const [error, setError] = useState('')
   const [selectedId, setSelectedId] = useState<number | null>(null)
@@ -110,12 +126,15 @@ export default function ChatArea({
           ☰
           {navBadge > 0 && <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full bg-red-500" />}
         </button>
+        <span className="text-2xl font-light text-gray-500">{icon}</span>
         <span className="min-w-0 flex-1 truncate text-[16px] font-bold text-white">{title}</span>
-        {!hideMembers && (
+        {onToggleMembers && (
           <button
-            onClick={onOpenMembers}
-            title="Members"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-xl hover:bg-white/10 lg:hidden"
+            onClick={onToggleMembers}
+            title="Member list"
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-xl hover:bg-white/10 ${
+              membersShown ? 'text-white' : 'text-gray-500'
+            }`}
           >
             👥
           </button>
@@ -125,8 +144,14 @@ export default function ChatArea({
       <div className="flex-1 overflow-y-auto pb-4 pt-2">
         {messages.length === 0 && (
           <div className="px-4 pb-4 pt-10">
-            <h2 className="text-3xl font-extrabold text-white">Welcome to {title}</h2>
-            <p className="mt-2 text-gray-400">This is the beginning of {title}. Say something to get things going!</p>
+            <h2 className="text-3xl font-extrabold text-white">
+              Welcome to {icon}
+              {title}
+            </h2>
+            <p className="mt-2 text-gray-400">
+              This is the beginning of {icon}
+              {title}. Say something to get things going!
+            </p>
           </div>
         )}
 
@@ -140,6 +165,7 @@ export default function ChatArea({
 
           const member = memberOf(m.user_id)
           const name = member?.display_name ?? 'Unknown user'
+          const nameColor = member ? roleStyle[member.role] || 'text-white' : 'text-gray-400'
           const authorRank = member ? rank[member.role] : 0
           const canDelete = m.user_id === myId || (myRank >= 2 && myRank > authorRank)
           const canReport = !!onReport && m.user_id !== myId
@@ -179,15 +205,44 @@ export default function ChatArea({
             </div>
           )
 
+          const dayDivider = newDay && (
+            <div className="mx-4 my-5 flex items-center gap-3 text-xs font-semibold text-gray-400">
+              <div className="flex-1 border-t border-white/10" />
+              {dayLabel(m.created_at)}
+              <div className="flex-1 border-t border-white/10" />
+            </div>
+          )
+
+          if (compact) {
+            return (
+              <Fragment key={m.id}>
+                {dayDivider}
+                <div
+                  onClick={() => tapMessage(m.id)}
+                  className={`group relative px-4 py-px hover:bg-black/[0.06] ${selected ? 'bg-black/[0.12]' : ''}`}
+                >
+                  <p className="whitespace-pre-wrap break-words leading-[1.375rem]" style={textStyle}>
+                    <span className="mr-2 text-[11px] text-gray-500">{formatTime(m.created_at)}</span>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation()
+                        if (member) onSelectMember(member.id)
+                      }}
+                      className={`mr-1.5 font-medium hover:underline ${nameColor}`}
+                    >
+                      {name}
+                    </button>
+                    <span className="text-gray-200">{m.content}</span>
+                  </p>
+                  {toolbar}
+                </div>
+              </Fragment>
+            )
+          }
+
           return (
             <Fragment key={m.id}>
-              {newDay && (
-                <div className="mx-4 my-5 flex items-center gap-3 text-xs font-semibold text-gray-400">
-                  <div className="flex-1 border-t border-white/10" />
-                  {dayLabel(m.created_at)}
-                  <div className="flex-1 border-t border-white/10" />
-                </div>
-              )}
+              {dayDivider}
 
               {grouped ? (
                 <div
@@ -203,7 +258,7 @@ export default function ChatArea({
                   >
                     {formatTime(m.created_at)}
                   </span>
-                  <p className="whitespace-pre-wrap break-words text-[16px] leading-[1.375rem] text-gray-200">
+                  <p className="whitespace-pre-wrap break-words leading-[1.375rem] text-gray-200" style={textStyle}>
                     {m.content}
                   </p>
                   {toolbar}
@@ -231,13 +286,13 @@ export default function ChatArea({
                           e.stopPropagation()
                           if (member) onSelectMember(member.id)
                         }}
-                        className="text-[16px] font-medium text-white hover:underline"
+                        className={`text-[16px] font-medium hover:underline ${nameColor}`}
                       >
                         {name}
                       </button>
-                      <span className="text-xs text-gray-400">{formatTime(m.created_at)}</span>
+                      <span className="text-xs text-gray-400">{stamp(m.created_at)}</span>
                     </div>
-                    <p className="whitespace-pre-wrap break-words text-[16px] leading-[1.375rem] text-gray-200">
+                    <p className="whitespace-pre-wrap break-words leading-[1.375rem] text-gray-200" style={textStyle}>
                       {m.content}
                     </p>
                   </div>

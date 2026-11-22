@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import type { Server, Profile, Message, Member, Role } from './types'
 import { rank } from './roles'
+import { updateSettings, useSettings } from './settings'
 import { useVoice } from './useVoice'
 import { useVoicePresence } from './useVoicePresence'
 import { useDms } from './useDms'
@@ -11,6 +12,7 @@ import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
 import DmSidebar from './components/DmSidebar'
 import ChatArea from './components/ChatArea'
+import CallView from './components/CallView'
 import FriendsPanel from './components/FriendsPanel'
 import MemberList from './components/MemberList'
 import ServerModal from './components/ServerModal'
@@ -18,12 +20,14 @@ import ChannelModal from './components/ChannelModal'
 import ProfileCard from './components/ProfileCard'
 import ReportModal from './components/ReportModal'
 import ServerSettings from './components/ServerSettings'
+import UserSettings from './components/UserSettings'
 import VoiceBar from './components/VoiceBar'
 import ScreenStage from './components/ScreenStage'
 
 type Props = {
   profile: Profile
-  onEditProfile: () => void
+  email: string
+  onProfileSaved: (p: Profile) => void
   onSignOut: () => void
 }
 
@@ -31,13 +35,15 @@ type ReportTarget =
   | { kind: 'user'; userId: string }
   | { kind: 'server_message' | 'dm_message'; messageId: number }
 
-export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
+export default function Chat({ profile, email, onProfileSaved, onSignOut }: Props) {
+  const settings = useSettings()
   const [servers, setServers] = useState<Server[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'servers' | 'dms'>('servers')
   const [serverId, setServerId] = useState<string | null>(null)
   const [channelId, setChannelId] = useState<string | null>(null)
   const [dmId, setDmId] = useState<string | null>(null)
+  const [callOpen, setCallOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
@@ -46,6 +52,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
   const [showModal, setShowModal] = useState(false)
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showUserSettings, setShowUserSettings] = useState(false)
   const [navOpen, setNavOpen] = useState(false) // mobile: servers and channels panel
   const [membersOpen, setMembersOpen] = useState(false) // mobile: members panel
 
@@ -74,6 +81,11 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     loadServers()
   }, [loadServers])
 
+  // The call screen only makes sense while you're in a call
+  useEffect(() => {
+    if (!voice.channelId) setCallOpen(false)
+  }, [voice.channelId])
+
   const server = servers.find(s => s.id === serverId) ?? servers[0] ?? null
   const textChannels = server?.channels.filter(c => c.kind === 'text') ?? []
   const channel = textChannels.find(c => c.id === channelId) ?? textChannels[0] ?? null
@@ -88,7 +100,7 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
 
   // Messages from people you blocked are hidden for you
   const visibleMessages = messages.filter(m => !friends.blockedIds.has(m.user_id))
-  
+
   // Sounds: message pings, voice join/leave, mute clicks, friend requests
   useSoundEffects({
     myId: profile.id,
@@ -136,9 +148,9 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     ? {
         channel: voiceServer.channels.find(c => c.id === voice.channelId)?.name ?? '',
         server: voiceServer.name,
-        here: !inDms && voiceServer.id === activeServerId,
       }
     : null
+  const showCall = !inDms && callOpen && !!voiceServer && voiceServer.id === activeServerId
 
   // Who is in each voice channel of the server you're viewing
   const voiceMap = useVoicePresence(profile.id, activeServerId, voiceServerId, voice.channelId)
@@ -259,11 +271,34 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     setServerId(id)
     setChannelId(null)
     setSelectedMemberId(null)
+    setCallOpen(false)
   }
 
-  function goToVoice() {
-    if (voiceServer) selectServer(voiceServer.id)
+  function selectChannel(id: string) {
+    setChannelId(id)
+    setCallOpen(false)
     setNavOpen(false)
+  }
+
+  function joinVoice(id: string) {
+    void voice.join(id)
+    setCallOpen(true)
+    setNavOpen(false)
+  }
+
+  function openCall() {
+    if (voiceServer) selectServer(voiceServer.id)
+    setCallOpen(true)
+    setNavOpen(false)
+  }
+
+  // On a big screen this shows or hides the member list. On a phone it opens the panel.
+  function toggleMembers() {
+    if (window.matchMedia('(min-width: 1024px)').matches) {
+      updateSettings({ showMembers: !settings.showMembers })
+    } else {
+      setMembersOpen(true)
+    }
   }
 
   async function startDm(userId: string): Promise<string | null> {
@@ -314,6 +349,16 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
     setChannelId(null)
     setMembers([])
     loadServers()
+  }
+
+  async function leaveServer() {
+    if (!server || !window.confirm(`Leave "${server.name}"?`)) return
+    const { error } = await supabase.rpc('leave_server', { sid: server.id })
+    if (error) {
+      window.alert(error.message)
+      return
+    }
+    handleLeft()
   }
 
   async function sendMessage(text: string): Promise<string | null> {
@@ -384,43 +429,41 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
               setNavOpen(false)
             }}
             onStart={startDm}
-            onGoToVoice={goToVoice}
-            onEditProfile={() => {
+            onOpenCall={openCall}
+            onOpenUserSettings={() => {
               setNavOpen(false)
-              onEditProfile()
+              setShowUserSettings(true)
             }}
-            onSignOut={onSignOut}
           />
         ) : (
           server &&
           channel && (
             <ChannelSidebar
               server={server}
-              activeChannelId={channel.id}
-              onSelect={id => {
-                setChannelId(id)
-                setNavOpen(false)
-              }}
+              activeChannelId={showCall ? undefined : channel.id}
+              callOpen={showCall}
+              onSelect={selectChannel}
+              onJoinVoice={joinVoice}
               profile={profile}
               myRole={myRole}
               voice={voice}
               voiceOccupants={voiceOccupants}
               avatarById={avatarById}
               voiceLabel={voiceLabel}
-              onGoToVoice={goToVoice}
+              onOpenCall={openCall}
               onAddChannel={() => {
                 setNavOpen(false)
                 setShowChannelModal(true)
               }}
-              onOpenSettings={() => {
+              onOpenServerSettings={() => {
                 setNavOpen(false)
                 setShowSettings(true)
               }}
-              onEditProfile={() => {
+              onLeaveServer={leaveServer}
+              onOpenUserSettings={() => {
                 setNavOpen(false)
-                onEditProfile()
+                setShowUserSettings(true)
               }}
-              onSignOut={onSignOut}
             />
           )
         )}
@@ -428,23 +471,34 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/* On phones the voice controls live here, so they are visible without opening the panel */}
-        <div className="md:hidden">
-          <VoiceBar
+        {!showCall && (
+          <div className="md:hidden">
+            <VoiceBar
+              voice={voice}
+              channelName={voiceLabel?.channel ?? ''}
+              serverName={voiceLabel?.server}
+              onOpenCall={openCall}
+              edge="bottom"
+            />
+          </div>
+        )}
+        {!showCall && <ScreenStage voice={voice} />}
+
+        {showCall ? (
+          <CallView
             voice={voice}
             channelName={voiceLabel?.channel ?? ''}
-            serverName={voiceLabel && !voiceLabel.here ? voiceLabel.server : undefined}
-            onGoTo={voiceLabel && !voiceLabel.here ? goToVoice : undefined}
-            edge="bottom"
+            avatarById={avatarById}
+            onOpenNav={() => setNavOpen(true)}
+            navBadge={homeBadge}
           />
-        </div>
-                <ScreenStage voice={voice} />
-
-        {inDms ? (
+        ) : inDms ? (
           dmConv ? (
             <ChatArea
               key={`dm:${dmConv.conversation_id}`}
               resetKey={dmConv.conversation_id}
-              title={`@${dmConv.other_display_name}`}
+              icon="@"
+              title={dmConv.other_display_name}
               placeholder={`Message @${dmConv.other_display_name}`}
               messages={dm.messages}
               members={dmMembers}
@@ -455,8 +509,6 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
               onReport={id => setReport({ kind: 'dm_message', messageId: id })}
               onSelectMember={setSelectedMemberId}
               onOpenNav={() => setNavOpen(true)}
-              onOpenMembers={() => {}}
-              hideMembers
               navBadge={homeBadge}
             />
           ) : (
@@ -479,7 +531,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           <ChatArea
             key="server-chat"
             resetKey={channel.id}
-            title={`# ${channel.name}`}
+            icon="#"
+            title={channel.name}
             placeholder={`Message #${channel.name}`}
             messages={visibleMessages}
             members={members}
@@ -490,7 +543,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
             onReport={id => setReport({ kind: 'server_message', messageId: id })}
             onSelectMember={setSelectedMemberId}
             onOpenNav={() => setNavOpen(true)}
-            onOpenMembers={() => setMembersOpen(true)}
+            onToggleMembers={toggleMembers}
+            membersShown={settings.showMembers}
             navBadge={homeBadge}
           />
         ) : (
@@ -507,8 +561,8 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
               <button onClick={() => setView('dms')} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
                 Friends and messages{homeBadge > 0 ? ` (${homeBadge})` : ''}
               </button>
-              <button onClick={onSignOut} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
-                Sign out
+              <button onClick={() => setShowUserSettings(true)} className="rounded bg-white/10 px-4 py-2 hover:bg-white/20">
+                Settings
               </button>
             </div>
           </div>
@@ -516,11 +570,11 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
       </div>
 
       {/* Members: a slide-out panel below the large breakpoint, a fixed column above it */}
-      {!inDms && server && channel && (
+      {!inDms && !showCall && server && channel && (
         <div
           className={`fixed inset-y-0 right-0 z-[6] w-72 max-w-[85vw] transition-transform duration-200 lg:static lg:z-auto lg:w-60 lg:max-w-none lg:translate-x-0 ${
             membersOpen ? 'translate-x-0' : 'translate-x-full'
-          }`}
+          } ${settings.showMembers ? '' : 'lg:hidden'}`}
         >
           <MemberList
             members={members}
@@ -569,6 +623,17 @@ export default function Chat({ profile, onEditProfile, onSignOut }: Props) {
           onClose={() => setShowSettings(false)}
           onChanged={refresh}
           onLeft={handleLeft}
+        />
+      )}
+
+      {showUserSettings && (
+        <UserSettings
+          profile={profile}
+          email={email}
+          voice={voice}
+          onClose={() => setShowUserSettings(false)}
+          onSaved={onProfileSaved}
+          onSignOut={onSignOut}
         />
       )}
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Room, RoomEvent, Track } from 'livekit-client'
 import type { LocalVideoTrack, Participant, RemoteTrack, RemoteVideoTrack } from 'livekit-client'
 import { supabase } from './supabase'
+import { getSettings } from './settings'
 
 export type VoiceParticipant = {
   id: string
@@ -9,6 +10,8 @@ export type VoiceParticipant = {
   speaking: boolean
   muted: boolean
   sharing: boolean
+  cameraOn: boolean
+  camera: LocalVideoTrack | RemoteVideoTrack | null
   isMe: boolean
 }
 export type ScreenShare = {
@@ -59,14 +62,23 @@ export function useVoice() {
     ]
 
     setParticipants(
-      all.map(({ p, isMe }) => ({
-        id: p.identity,
-        name: p.name || 'Unknown',
-        speaking: p.isSpeaking,
-        muted: !p.isMicrophoneEnabled,
-        sharing: !!p.getTrackPublication(Track.Source.ScreenShare),
-        isMe,
-      }))
+      all.map(({ p, isMe }) => {
+        const cam = p.getTrackPublication(Track.Source.Camera)
+        const camTrack =
+          cam && !cam.isMuted && cam.track && cam.track.kind === Track.Kind.Video
+            ? (cam.track as LocalVideoTrack | RemoteVideoTrack)
+            : null
+        return {
+          id: p.identity,
+          name: p.name || 'Unknown',
+          speaking: p.isSpeaking,
+          muted: !p.isMicrophoneEnabled,
+          sharing: !!p.getTrackPublication(Track.Source.ScreenShare),
+          cameraOn: !!camTrack,
+          camera: camTrack,
+          isMe,
+        }
+      })
     )
 
     const shares: ScreenShare[] = []
@@ -148,11 +160,19 @@ export function useVoice() {
         return
       }
 
-      // 2. Connect to the LiveKit room
+      // 2. Connect to the LiveKit room, using the devices chosen in settings
+      const prefs = getSettings()
       const room = new Room({
         adaptiveStream: true,
         dynacast: true,
-        audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          ...(prefs.micId ? { deviceId: prefs.micId } : {}),
+        },
+        videoCaptureDefaults: prefs.cameraId ? { deviceId: prefs.cameraId } : {},
+        ...(prefs.speakerId ? { audioOutput: { deviceId: prefs.speakerId } } : {}),
       })
       const refresh = () => {
         if (roomRef.current === room) snapshot(room)
@@ -168,7 +188,7 @@ export function useVoice() {
             audioEls.current.add(el)
             return
           }
-          refresh() // a screen share started
+          refresh() // a camera or screen share started
         })
         .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
           if (track.kind === Track.Kind.Audio) {
@@ -279,6 +299,20 @@ export function useVoice() {
     if (roomRef.current === room) snapshot(room)
   }, [toggleDeafen, setMuted, snapshot])
 
+  const toggleCamera = useCallback(async () => {
+    const room = roomRef.current
+    if (!room) return
+    setError('')
+    const next = !room.localParticipant.isCameraEnabled
+    try {
+      await room.localParticipant.setCameraEnabled(next)
+    } catch (e) {
+      console.error(e)
+      setError('Could not start your camera. Check that it is connected and allowed for this site.')
+    }
+    if (roomRef.current === room) snapshot(room)
+  }, [snapshot])
+
   const toggleScreenShare = useCallback(async () => {
     const room = roomRef.current
     if (!room) return
@@ -316,6 +350,17 @@ export function useVoice() {
   const watch = useCallback((id: string) => setWatching(id, true), [setWatching])
   const stopWatching = useCallback((id: string) => setWatching(id, false), [setWatching])
 
+  // Switch microphone, speakers, or camera while in a call
+  const setDevice = useCallback(async (kind: MediaDeviceKind, deviceId: string) => {
+    const room = roomRef.current
+    if (!room || !deviceId) return
+    try {
+      await room.switchActiveDevice(kind, deviceId)
+    } catch (e) {
+      console.error(e)
+    }
+  }, [])
+
   // Disconnect when the component goes away (for example on sign out)
   useEffect(
     () => () => {
@@ -330,6 +375,7 @@ export function useVoice() {
   )
 
   const sharing = screens.some(s => s.isMe)
+  const cameraOn = participants.some(p => p.isMe && p.cameraOn)
 
   return {
     channelId,
@@ -340,13 +386,16 @@ export function useVoice() {
     participants,
     screens,
     sharing,
+    cameraOn,
     join,
     leave,
     toggleMute,
     toggleDeafen,
+    toggleCamera,
     toggleScreenShare,
     watch,
     stopWatching,
+    setDevice,
   }
 }
 

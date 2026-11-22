@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import type { DmSummary, Profile } from '../types'
 import type { VoiceApi } from '../useVoice'
 import VoiceBar from './VoiceBar'
+import UserPanel from './UserPanel'
 import Avatar from './Avatar'
 
 type Person = { id: string; username: string; display_name: string; avatar_path: string | null }
@@ -14,13 +15,12 @@ type Props = {
   pendingCount: number
   profile: Profile
   voice: VoiceApi
-  voiceLabel: { channel: string; server: string; here: boolean } | null
+  voiceLabel: { channel: string; server: string } | null
   onSelect: (id: string) => void
   onShowFriends: () => void
   onStart: (userId: string) => Promise<string | null>
-  onGoToVoice: () => void
-  onEditProfile: () => void
-  onSignOut: () => void
+  onOpenCall: () => void
+  onOpenUserSettings: () => void
 }
 
 export default function DmSidebar({
@@ -34,9 +34,8 @@ export default function DmSidebar({
   onSelect,
   onShowFriends,
   onStart,
-  onGoToVoice,
-  onEditProfile,
-  onSignOut,
+  onOpenCall,
+  onOpenUserSettings,
 }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Person[] | null>(null)
@@ -81,13 +80,13 @@ export default function DmSidebar({
     d.last_content ? `${d.last_user_id === profile.id ? 'You: ' : ''}${d.last_content}` : 'No messages yet'
 
   return (
-    <aside className="flex w-60 flex-col bg-[#2b2d31]">
-      <div className="border-b border-black/20 p-2">
+    <aside className="flex w-60 shrink-0 flex-col bg-[#2b2d31]">
+      <div className="flex h-12 shrink-0 items-center px-3 shadow-[0_1px_0_rgba(0,0,0,0.25)]">
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Find someone to message"
-          className="w-full rounded bg-[#1e1f22] px-3 py-2 text-sm outline-none"
+          placeholder="Find or start a conversation"
+          className="w-full rounded-md bg-[#1e1f22] px-2.5 py-1.5 text-sm outline-none placeholder:text-gray-500"
         />
       </div>
 
@@ -96,7 +95,7 @@ export default function DmSidebar({
 
         {results !== null ? (
           <>
-            <div className="px-2 pb-1 text-xs font-semibold uppercase text-gray-400">People</div>
+            <div className="px-2 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-gray-400">People</div>
             {results.length === 0 && (
               <p className="px-2 py-2 text-sm text-gray-400">
                 No one found. This searches people you share a server with. Use Friends to add anyone by username.
@@ -106,11 +105,11 @@ export default function DmSidebar({
               <button
                 key={p.id}
                 onClick={() => startWith(p.id)}
-                className="flex w-full items-center gap-3 rounded px-2 py-2 text-left hover:bg-white/10"
+                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left hover:bg-white/5"
               >
-                <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size={36} />
+                <Avatar id={p.id} name={p.display_name} path={p.avatar_path} size={32} />
                 <span className="min-w-0 leading-tight">
-                  <span className="block truncate text-sm">{p.display_name}</span>
+                  <span className="block truncate text-[15px] text-gray-100">{p.display_name}</span>
                   <span className="block truncate text-xs text-gray-400">@{p.username}</span>
                 </span>
               </button>
@@ -120,18 +119,18 @@ export default function DmSidebar({
           <>
             <button
               onClick={onShowFriends}
-              className={`mb-2 flex w-full items-center gap-3 rounded px-2 py-2 text-left ${
-                friendsActive ? 'bg-white/15' : 'hover:bg-white/10'
+              className={`mb-3 flex w-full items-center gap-3 rounded-md px-2 py-2.5 text-left ${
+                friendsActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-200'
               }`}
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center text-xl">👥</span>
-              <span className="flex-1 text-sm font-semibold">Friends</span>
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center text-xl">👥</span>
+              <span className="flex-1 text-[16px] font-medium">Friends</span>
               {pendingCount > 0 && (
-                <span className="rounded-full bg-red-500 px-2 text-xs font-bold">{pendingCount}</span>
+                <span className="rounded-full bg-red-500 px-2 text-xs font-bold text-white">{pendingCount}</span>
               )}
             </button>
 
-            <div className="px-2 pb-1 text-xs font-semibold uppercase text-gray-400">Direct messages</div>
+            <div className="px-2 pb-1 text-xs font-bold uppercase tracking-wide text-gray-400">Direct messages</div>
             {dms.length === 0 && (
               <p className="px-2 py-2 text-sm text-gray-400">
                 No conversations yet. Search for someone above, or message a friend.
@@ -141,13 +140,15 @@ export default function DmSidebar({
               <button
                 key={d.conversation_id}
                 onClick={() => onSelect(d.conversation_id)}
-                className={`flex w-full items-center gap-3 rounded px-2 py-2 text-left ${
-                  d.conversation_id === activeId ? 'bg-white/15' : 'hover:bg-white/10'
+                className={`flex w-full items-center gap-3 rounded-md px-2 py-2 text-left ${
+                  d.conversation_id === activeId ? 'bg-white/10' : 'hover:bg-white/5'
                 }`}
               >
-                <Avatar id={d.other_id} name={d.other_display_name} path={d.other_avatar_path} size={36} />
+                <Avatar id={d.other_id} name={d.other_display_name} path={d.other_avatar_path} size={32} />
                 <span className="min-w-0 flex-1 leading-tight">
-                  <span className={`block truncate text-sm ${d.unread ? 'font-bold text-white' : 'text-gray-300'}`}>
+                  <span
+                    className={`block truncate text-[15px] ${d.unread ? 'font-bold text-white' : 'text-gray-300'}`}
+                  >
                     {d.other_display_name}
                   </span>
                   <span className="block truncate text-xs text-gray-400">{preview(d)}</span>
@@ -162,23 +163,10 @@ export default function DmSidebar({
       <VoiceBar
         voice={voice}
         channelName={voiceLabel?.channel ?? ''}
-        serverName={voiceLabel && !voiceLabel.here ? voiceLabel.server : undefined}
-        onGoTo={voiceLabel && !voiceLabel.here ? onGoToVoice : undefined}
+        serverName={voiceLabel?.server}
+        onOpenCall={onOpenCall}
       />
-
-      <div className="flex h-[52px] items-center gap-1 bg-[#232428] px-3">
-        <Avatar id={profile.id} name={profile.display_name} path={profile.avatar_path} size={32} className="mr-1" />
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-sm font-semibold">{profile.display_name}</div>
-          <div className="truncate text-xs text-gray-400">@{profile.username}</div>
-        </div>
-        <button onClick={onEditProfile} title="Edit profile" className="px-2 py-2 text-xs text-gray-400 hover:text-white">
-          Edit
-        </button>
-        <button onClick={onSignOut} title="Sign out" className="px-2 py-2 text-xs text-gray-400 hover:text-white">
-          Out
-        </button>
-      </div>
+      <UserPanel profile={profile} voice={voice} onOpenSettings={onOpenUserSettings} />
     </aside>
   )
 }

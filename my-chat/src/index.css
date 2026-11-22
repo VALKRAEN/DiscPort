@@ -1,12 +1,53 @@
 @import "tailwindcss";
 
+/* Theme colors. Classic is your current look. */
+:root {
+  --t-primary: #313338;
+  --t-secondary: #2b2d31;
+  --t-tertiary: #1e1f22;
+  --t-panel: #232428;
+  --t-deep: #111214;
+  --t-input: #383a40;
+  --t-hover: #404249;
+  --t-hover2: #35373c;
+  --chat-font: 16px;
+}
+:root[data-theme="darker"] {
+  --t-primary: #232428; --t-secondary: #1a1b1e; --t-tertiary: #111214; --t-panel: #16171a;
+  --t-deep: #0b0b0d; --t-input: #2b2d31; --t-hover: #35373c; --t-hover2: #2b2d31;
+}
+:root[data-theme="midnight"] {
+  --t-primary: #1a1d2e; --t-secondary: #151827; --t-tertiary: #0e1019; --t-panel: #121420;
+  --t-deep: #0a0b12; --t-input: #23263a; --t-hover: #2b2f47; --t-hover2: #262a40;
+}
+:root[data-theme="onyx"] {
+  --t-primary: #121212; --t-secondary: #0a0a0a; --t-tertiary: #000000; --t-panel: #050505;
+  --t-deep: #000000; --t-input: #1c1c1c; --t-hover: #262626; --t-hover2: #1f1f1f;
+}
+
+/* Re-point the app's dark colors at the theme (these only apply when a theme is chosen) */
+:root[data-theme] .bg-\[\#313338\] { background-color: var(--t-primary); }
+:root[data-theme] .bg-\[\#2b2d31\] { background-color: var(--t-secondary); }
+:root[data-theme] .bg-\[\#1e1f22\] { background-color: var(--t-tertiary); }
+:root[data-theme] .bg-\[\#232428\] { background-color: var(--t-panel); }
+:root[data-theme] .bg-\[\#111214\] { background-color: var(--t-deep); }
+:root[data-theme] .bg-\[\#383a40\] { background-color: var(--t-input); }
+:root[data-theme] .bg-\[\#404249\] { background-color: var(--t-hover); }
+:root[data-theme] .hover\:bg-\[\#404249\]:hover { background-color: var(--t-hover); }
+:root[data-theme] .hover\:bg-\[\#35373c\]:hover { background-color: var(--t-hover2); }
+:root[data-theme] .hover\:bg-\[\#1e1f22\]:hover { background-color: var(--t-tertiary); }
+:root[data-theme] .border-\[\#232428\] { border-color: var(--t-panel); }
+:root[data-theme] .border-\[\#2b2d31\] { border-color: var(--t-secondary); }
+:root[data-theme] .border-\[\#1e1f22\] { border-color: var(--t-tertiary); }
+:root[data-theme] .ring-offset-\[\#2b2d31\] { --tw-ring-offset-color: var(--t-secondary); }
+
 html {
   font-size: 16px;
 }
 
 body {
   margin: 0;
-  background: #313338;
+  background: var(--t-primary);
   color: #dbdee1;
   font-family: "gg sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
