@@ -1,4 +1,5 @@
 import './settings' // applies your saved theme and accent before anything draws
+import { signOutCleanly } from './pwa' // also registers the service worker
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
@@ -80,7 +81,7 @@ export default function App() {
       profile={profile}
       email={session.user.email ?? ''}
       onProfileSaved={setProfile}
-      onSignOut={() => supabase.auth.signOut()}
+     onSignOut={signOutCleanly}
     />
   )
 }

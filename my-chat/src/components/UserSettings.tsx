@@ -9,8 +9,9 @@ import { getSoundsEnabled, getVolume, playSound, setSoundsEnabled, setVolume } f
 import type { SoundName } from '../sounds'
 import type { VoiceApi } from '../useVoice'
 import Avatar from './Avatar'
+import NotificationSettings from './NotificationSettings'
 
-type Tab = 'account' | 'appearance' | 'voice' | 'sounds'
+type Tab = 'account' | 'appearance' | 'voice' | 'sounds' | 'notifications'
 
 const NAV: { group: string; items: { id: Tab; label: string; icon: string }[] }[] = [
   {
@@ -25,6 +26,7 @@ const NAV: { group: string; items: { id: Tab; label: string; icon: string }[] }[
     items: [
       { id: 'voice', label: 'Voice & Video', icon: '🎙' },
       { id: 'sounds', label: 'Sounds', icon: '🔔' },
+      { id: 'notifications', label: 'Notifications', icon: '📲' },
     ],
   },
 ]
@@ -34,6 +36,7 @@ const TITLES: Record<Tab, string> = {
   appearance: 'Appearance',
   voice: 'Voice & Video',
   sounds: 'Sounds',
+  notifications: 'Notifications',
 }
 
 const card = 'mb-6 rounded-xl bg-[#2b2d31] p-5'
@@ -757,6 +760,7 @@ export default function UserSettings({ profile, email, voice, onClose, onSaved, 
           {tab === 'appearance' && <AppearanceTab />}
           {tab === 'voice' && <VoiceTab voice={voice} />}
           {tab === 'sounds' && <SoundsTab />}
+          {tab === 'notifications' && <NotificationSettings />}
         </div>
       </div>
     </div>

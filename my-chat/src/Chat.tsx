@@ -8,6 +8,8 @@ import { useVoicePresence } from './useVoicePresence'
 import { useDms } from './useDms'
 import { useFriends } from './useFriends'
 import { useSoundEffects } from './useSoundEffects'
+import { useNotifications } from './useNotifications'
+import NotificationPrompt from './components/NotificationPrompt'
 import ServerRail from './components/ServerRail'
 import ChannelSidebar from './components/ChannelSidebar'
 import DmSidebar from './components/DmSidebar'
@@ -114,7 +116,29 @@ export default function Chat({ profile, email, onProfileSaved, onSignOut }: Prop
     channelKey: inDms ? null : activeChannelId ?? null,
     messages: inDms ? [] : visibleMessages,
   })
-
+ // Notifications: banners while you're away, the unread count on the tab and app icon, and tap-to-open
+  useNotifications({
+    myId: profile.id,
+    dms: dm.dms,
+    dmsLoaded: dm.loaded,
+    incomingRequests: friends.incoming,
+    friendsLoaded: friends.loaded,
+    inDms,
+    openDmId: dmId,
+    channelKey: inDms ? null : activeChannelId ?? null,
+    channelName: channel?.name ?? '',
+    messages: inDms ? [] : visibleMessages,
+    members,
+    unreadCount: homeBadge,
+    onOpenDm: id => {
+      setView('dms')
+      setDmId(id)
+    },
+    onOpenFriends: () => {
+      setView('dms')
+      setDmId(null)
+    },
+  })
   // The open DM conversation, and the two people in it (so names and avatars work in ChatArea)
   const dmConv = dm.dms.find(d => d.conversation_id === dmId) ?? null
   const dmMembers: Member[] = dmConv
@@ -470,6 +494,7 @@ export default function Chat({ profile, email, onProfileSaved, onSignOut }: Prop
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+         <NotificationPrompt />
         {/* On phones the voice controls live here, so they are visible without opening the panel */}
         {!showCall && (
           <div className="md:hidden">
